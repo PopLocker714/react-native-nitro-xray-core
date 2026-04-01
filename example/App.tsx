@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {Text, View, StyleSheet, Button, SafeAreaView, ScrollView } from 'react-native';
 import { NitroXrayCore } from 'react-native-nitro-xray-core';
 
@@ -67,17 +67,30 @@ const XRAY_CONFIG = {
 function App(): React.JSX.Element {
   const [logs, setLogs] = useState<string[]>([]);
 
+  useEffect(() => {
+    NitroXrayCore.requestNotificationPermission().then(granted => {
+      console.log('Notification permission granted:', granted);
+    }).catch(e => {
+      console.error('Failed to request notification permission', e);
+    });
+  }, []);
+
   const addLog = (msg: string) => {
     setLogs(prev => [...prev, msg]);
   };
 
   const handlePrepare = async () => {
     try {
-      addLog("Calling prepareVpn()...");
-      await NitroXrayCore.prepareVpn();
-      addLog("prepareVpn completed or already granted.");
+      addLog("Checking VPN permission...");
+      const hasPerm = await NitroXrayCore.hasVpnPermission();
+      if (hasPerm) {
+        addLog("VPN permission already granted.");
+      } else {
+        addLog("Requesting VPN permission...");
+        await NitroXrayCore.requestVpnPermission();
+      }
     } catch (e: any) {
-      addLog(`prepareVpn error: ${e.message}`);
+      addLog(`VPN permission error: ${e.message}`);
     }
   };
 
@@ -105,7 +118,7 @@ function App(): React.JSX.Element {
     <SafeAreaView style={styles.container}>
         <Text style={styles.title}>Nitro Xray VPN</Text>
         <View style={styles.buttonContainer}>
-          <Button title="1. Prepare VPN" onPress={handlePrepare} />
+          <Button title="1. Check/Request VPN Permission" onPress={handlePrepare} />
         </View>
         <View style={styles.buttonContainer}>
           <Button title="2. Start VPN" onPress={handleStart} color="green" />

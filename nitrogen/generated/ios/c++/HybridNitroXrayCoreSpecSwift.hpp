@@ -67,8 +67,24 @@ namespace margelo::nitro::nitroxraycore {
 
   public:
     // Methods
-    inline std::shared_ptr<Promise<void>> prepareVpn() override {
-      auto __result = _swiftPart.prepareVpn();
+    inline std::shared_ptr<Promise<bool>> hasVpnPermission() override {
+      auto __result = _swiftPart.hasVpnPermission();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
+    inline std::shared_ptr<Promise<void>> requestVpnPermission() override {
+      auto __result = _swiftPart.requestVpnPermission();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
+    inline std::shared_ptr<Promise<bool>> requestNotificationPermission() override {
+      auto __result = _swiftPart.requestNotificationPermission();
       if (__result.hasError()) [[unlikely]] {
         std::rethrow_exception(__result.error());
       }

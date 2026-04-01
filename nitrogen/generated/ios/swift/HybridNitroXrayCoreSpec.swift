@@ -13,7 +13,9 @@ public protocol HybridNitroXrayCoreSpec_protocol: HybridObject {
   
 
   // Methods
-  func prepareVpn() throws -> Promise<Void>
+  func hasVpnPermission() throws -> Promise<Bool>
+  func requestVpnPermission() throws -> Promise<Void>
+  func requestNotificationPermission() throws -> Promise<Bool>
   func startXray(configJson: String) throws -> Promise<Void>
   func stopXray() throws -> Promise<Void>
 }

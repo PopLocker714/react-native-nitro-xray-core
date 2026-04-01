@@ -31,7 +31,15 @@ abstract class HybridNitroXrayCoreSpec: HybridObject() {
   // Methods
   @DoNotStrip
   @Keep
-  abstract fun prepareVpn(): Promise<Unit>
+  abstract fun hasVpnPermission(): Promise<Boolean>
+  
+  @DoNotStrip
+  @Keep
+  abstract fun requestVpnPermission(): Promise<Unit>
+  
+  @DoNotStrip
+  @Keep
+  abstract fun requestNotificationPermission(): Promise<Boolean>
   
   @DoNotStrip
   @Keep

@@ -14,7 +14,9 @@ namespace margelo::nitro::nitroxraycore {
     HybridObject::loadHybridMethods();
     // load custom methods/properties
     registerHybrids(this, [](Prototype& prototype) {
-      prototype.registerHybridMethod("prepareVpn", &HybridNitroXrayCoreSpec::prepareVpn);
+      prototype.registerHybridMethod("hasVpnPermission", &HybridNitroXrayCoreSpec::hasVpnPermission);
+      prototype.registerHybridMethod("requestVpnPermission", &HybridNitroXrayCoreSpec::requestVpnPermission);
+      prototype.registerHybridMethod("requestNotificationPermission", &HybridNitroXrayCoreSpec::requestNotificationPermission);
       prototype.registerHybridMethod("startXray", &HybridNitroXrayCoreSpec::startXray);
       prototype.registerHybridMethod("stopXray", &HybridNitroXrayCoreSpec::stopXray);
     });

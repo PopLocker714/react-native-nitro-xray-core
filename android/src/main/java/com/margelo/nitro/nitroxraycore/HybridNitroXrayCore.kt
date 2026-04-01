@@ -10,26 +10,73 @@ import androidx.annotation.Keep
 import com.facebook.proguard.annotations.DoNotStrip
 import android.util.Log
 
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+
 @Keep
 @DoNotStrip
 class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
-    override fun prepareVpn(): Promise<Unit> {
+    override fun hasVpnPermission(): Promise<Boolean> {
+        return Promise.async {
+            val context = NitroModules.applicationContext
+            if (context == null) throw Exception("Application context is null")
+            
+            val intent = VpnService.prepare(context)
+            return@async intent == null
+        }
+    }
+
+    override fun requestVpnPermission(): Promise<Unit> {
         return Promise.async {
             val context = NitroModules.applicationContext
             if (context == null) throw Exception("Application context is null")
             
             val intent = VpnService.prepare(context)
             if (intent != null) {
-                val actIntent = Intent(context, com.nitroxraycore.VpnRequestActivity::class.java)
-                actIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(actIntent)
-                // Return an error for now. The JS side will catch it and understand it was requested.
-                throw Exception("VPN Permission Requested. Please accept the dialog then Retry.")
+                val granted = suspendCancellableCoroutine<Boolean> { continuation ->
+                    com.nitroxraycore.VpnRequestActivity.pendingPromise = { result ->
+                        continuation.resume(result)
+                    }
+                    val actIntent = Intent(context, com.nitroxraycore.VpnRequestActivity::class.java)
+                    actIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(actIntent)
+                }
+                
+                if (!granted) {
+                    throw Exception("VPN Permission Denied by User")
+                }
             } else {
                 Log.i("NitroXrayCore", "VPN permission already granted")
             }
         }
     }
+
+    override fun requestNotificationPermission(): Promise<Boolean> {
+        return Promise.async {
+            val context = NitroModules.applicationContext
+            if (context == null) throw Exception("Application context is null")
+            
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    return@async true
+                }
+                
+                val granted = suspendCancellableCoroutine<Boolean> { continuation ->
+                    com.nitroxraycore.VpnRequestActivity.pendingPromise = { result ->
+                        continuation.resume(result)
+                    }
+                    val actIntent = Intent(context, com.nitroxraycore.VpnRequestActivity::class.java)
+                    actIntent.action = com.nitroxraycore.VpnRequestActivity.ACTION_REQUEST_NOTIFICATION
+                    actIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(actIntent)
+                }
+                return@async granted
+            }
+            return@async true
+        }
+    }
+
+
 
     override fun startXray(configJson: String): Promise<Unit> {
         return Promise.async {
