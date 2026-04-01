@@ -1,0 +1,30 @@
+{
+  "$schema": "https://nitro.margelo.com/nitro.schema.json",
+  "cxxNamespace": [
+    "nitroxraycore"
+  ],
+  "ios": {
+    "iosModuleName": "NitroXrayCore"
+  },
+  "android": {
+    "androidNamespace": [
+      "nitroxraycore"
+    ],
+    "androidCxxLibName": "NitroXrayCore"
+  },
+  "autolinking": {
+    "NitroXrayCore": {
+      "ios": {
+        "language": "swift",
+        "implementationClassName": "HybridNitroXrayCore"
+      },
+      "android": {
+        "language": "kotlin",
+        "implementationClassName": "HybridNitroXrayCore"
+      }
+    }
+  },
+  "ignorePaths": [
+    "**/node_modules"
+  ]
+}
