@@ -4,6 +4,7 @@ export interface NitroXrayCore extends HybridObject<{ ios: 'swift', android: 'ko
   hasVpnPermission(): Promise<boolean>
   requestVpnPermission(): Promise<void>
   requestNotificationPermission(): Promise<boolean>
+  isVpnConnected(): boolean
   startXray(configJson: string): Promise<void>
   stopXray(): Promise<void>
 }

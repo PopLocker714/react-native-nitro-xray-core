@@ -16,6 +16,10 @@ import kotlin.coroutines.resume
 @Keep
 @DoNotStrip
 class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
+    override fun isVpnConnected(): Boolean {
+        return com.nitroxraycore.XrayVpnService.isRunning
+    }
+
     override fun hasVpnPermission(): Promise<Boolean> {
         return Promise.async {
             val context = NitroModules.applicationContext

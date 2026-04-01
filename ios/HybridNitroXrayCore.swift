@@ -16,6 +16,10 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         return Promise.resolved(withResult: ())
     }
 
+    func isVpnConnected() throws -> Bool {
+        return false
+    }
+
     func requestNotificationPermission() throws -> Promise<Bool> {
         return Promise.resolved(withResult: true)
     }

@@ -114,6 +114,11 @@ function App(): React.JSX.Element {
     }
   };
 
+  const handleCheckStatus = () => {
+    const isConn = NitroXrayCore.isVpnConnected();
+    addLog(`VPN Connected State: ${isConn ? 'YES (connected)' : 'NO (disconnected)'}`);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
         <Text style={styles.title}>Nitro Xray VPN</Text>
@@ -125,6 +130,9 @@ function App(): React.JSX.Element {
         </View>
         <View style={styles.buttonContainer}>
           <Button title="3. Stop VPN" onPress={handleStop} color="red" />
+        </View>
+        <View style={styles.buttonContainer}>
+          <Button title="4. Check Status" onPress={handleCheckStatus} color="purple" />
         </View>
 
         <ScrollView style={styles.logContainer}>

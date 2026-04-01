@@ -19,6 +19,9 @@ class XrayVpnService : VpnService() {
         const val ACTION_STOP = "ACTION_STOP"
         const val CHANNEL_ID = "xray_vpn_channel"
         private const val TAG = "XrayVpnService"
+        
+        @Volatile
+        var isRunning: Boolean = false
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -49,7 +52,9 @@ class XrayVpnService : VpnService() {
 
                 Log.i(TAG, "Starting XrayEngine...")
                 val result = XrayEngine.start(configJson, tunFd)
-                if (result != 0) {
+                if (result == 0) {
+                    isRunning = true
+                } else {
                     Log.e(TAG, "XrayEngine failed to start with code: $result")
                     stopSelf()
                 }
@@ -87,6 +92,7 @@ class XrayVpnService : VpnService() {
     }
 
     private fun stopVpn() {
+        isRunning = false
         XrayEngine.stop()
         try {
             vpnInterface?.close()

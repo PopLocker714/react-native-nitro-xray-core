@@ -91,6 +91,14 @@ namespace margelo::nitro::nitroxraycore {
       auto __value = std::move(__result.value());
       return __value;
     }
+    inline bool isVpnConnected() override {
+      auto __result = _swiftPart.isVpnConnected();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
     inline std::shared_ptr<Promise<void>> startXray(const std::string& configJson) override {
       auto __result = _swiftPart.startXray(configJson);
       if (__result.hasError()) [[unlikely]] {

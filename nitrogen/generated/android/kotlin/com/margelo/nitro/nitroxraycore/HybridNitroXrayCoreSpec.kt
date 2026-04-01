@@ -43,6 +43,10 @@ abstract class HybridNitroXrayCoreSpec: HybridObject() {
   
   @DoNotStrip
   @Keep
+  abstract fun isVpnConnected(): Boolean
+  
+  @DoNotStrip
+  @Keep
   abstract fun startXray(configJson: String): Promise<Unit>
   
   @DoNotStrip

@@ -94,6 +94,11 @@ namespace margelo::nitro::nitroxraycore {
       return __promise;
     }();
   }
+  bool JHybridNitroXrayCoreSpec::isVpnConnected() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jboolean()>("isVpnConnected");
+    auto __result = method(_javaPart);
+    return static_cast<bool>(__result);
+  }
   std::shared_ptr<Promise<void>> JHybridNitroXrayCoreSpec::startXray(const std::string& configJson) {
     static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPromise::javaobject>(jni::alias_ref<jni::JString> /* configJson */)>("startXray");
     auto __result = method(_javaPart, jni::make_jstring(configJson));

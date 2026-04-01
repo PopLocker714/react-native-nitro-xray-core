@@ -182,6 +182,18 @@ open class HybridNitroXrayCoreSpec_cxx {
   }
   
   @inline(__always)
+  public final func isVpnConnected() -> bridge.Result_bool_ {
+    do {
+      let __result = try self.__implementation.isVpnConnected()
+      let __resultCpp = __result
+      return bridge.create_Result_bool_(__resultCpp)
+    } catch (let __error) {
+      let __exceptionPtr = __error.toCpp()
+      return bridge.create_Result_bool_(__exceptionPtr)
+    }
+  }
+  
+  @inline(__always)
   public final func startXray(configJson: std.string) -> bridge.Result_std__shared_ptr_Promise_void___ {
     do {
       let __result = try self.__implementation.startXray(configJson: String(configJson))
