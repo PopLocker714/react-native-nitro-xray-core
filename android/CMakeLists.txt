@@ -18,6 +18,7 @@ include(${CMAKE_SOURCE_DIR}/../nitrogen/generated/android/NitroXrayCore+autolink
 
 # Set up local includes
 include_directories(
+        "src/main/cpp/xray/${CMAKE_ANDROID_ARCH_ABI}"
         "src/main/cpp"
         "../cpp"
 )
