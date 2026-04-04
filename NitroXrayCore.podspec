@@ -22,6 +22,10 @@ Pod::Spec.new do |s|
     "cpp/**/*.{hpp,cpp}",
   ]
 
+  # Xray Go library — built by go-core/build_ios.sh
+  # The xcframework contains arm64 (device) + x86_64/arm64 (simulator) slices.
+  s.vendored_frameworks = "ios/Xray.xcframework"
+
   load 'nitrogen/generated/ios/NitroXrayCore+autolinking.rb'
   add_nitrogen_files(s)
 
@@ -29,3 +33,4 @@ Pod::Spec.new do |s|
   s.dependency 'React-callinvoker'
   install_modules_dependencies(s)
 end
+

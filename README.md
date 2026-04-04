@@ -39,6 +39,38 @@ XrayEngine.stop();
 
 ---
 
+## 🍏 iOS Setup Guide (Network Extension)
+
+To use `react-native-nitro-xray-core` on iOS, you cannot simply run it in the main application. Apple requires VPN processes to run inside a separate background target known as a **Network Extension (Packet Tunnel Provider)**. Due to strict iOS security and memory limits (15 MB Jetsam limit), follow these steps precisely:
+
+### 1. Capabilities & Identifiers
+Go to the **Apple Developer Portal** and configure your App ID:
+- Add the **Network Extension** capability and check **Packet Tunnel**.
+- Add the **App Groups** capability (e.g., `group.com.yourcompany.app`).
+- Create a *second* App ID for your tunnel (e.g., `com.yourcompany.app.tunnel`) and assign it the **same** App Group and Network Extension capabilities.
+
+### 2. Create the Extension Target in Xcode
+1. In Xcode, go to **File > New > Target...**
+2. Choose **Network Extension** and select **Packet Tunnel Provider**. Name it `tunnel`.
+3. In the project settings for the `tunnel` target, under **Signing & Capabilities**, add **App Groups** and **Network Extension** (check Packet Tunnel). Match the App Group ID with your main app.
+
+### 3. Link the Pre-Compiled Xray Core
+1. Locate `Xray.xcframework` in the `node_modules/react-native-nitro-xray-core/ios/` directory (or build it via the `go-core` script).
+2. Select your `tunnel` target, go to **General > Frameworks and Libraries**.
+3. Add `Xray.xcframework` and ensure it is set to **Embed & Sign**.
+4. Also add `NetworkExtension.framework` and `libresolv.tbd` (required for DNS).
+
+### 4. Critical Build Settings for the `tunnel` Target
+- **Deployment Target**: Ensure `IPHONEOS_DEPLOYMENT_TARGET` is set accurately (e.g., `15.1`). *If you set it to a future iOS version, iOS will refuse to launch the extension, flag it as "Needs Update", and kill the process with `SIGKILL`.*
+- **Memory Limit**: Network Extensions have a strict 15MB RAM limit on iOS. Our Go binary is tuned via `main_ios.go` (`debug.SetMemoryLimit(14MB)` and `GOGC=10`) to survive, but ensure **no React Native frameworks (like React.framework)** are accidentally linked to the `tunnel` target, or you will immediately crash on startup.
+
+### 5. Modify PacketTunnelProvider.swift
+Use the provided `HybridNitroXrayCore.swift` (main app) to negotiate permissions and launch the VPN. In your `tunnel` folder, edit `PacketTunnelProvider.swift` to invoke the C-bridge `StartXray(config, fd)` method. Xray will bind to the TUN interface automatically. 
+
+*(See the `example/ios/tunnel/PacketTunnelProvider.swift` in this repository for a complete production-ready implementation that falls back to `options` if App Groups fail for free Apple IDs).*
+
+---
+
 ## 🛠 Advanced (For Library Contributors)
 
 If you want to contribute to the package, edit the native code, or update the internal Go engine, read below.
