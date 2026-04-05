@@ -17,8 +17,8 @@ mkdir -p "$INCLUDE_DIR"
 archs=(
     "arm64-v8a|arm64||aarch64-linux-android30"
     "armeabi-v7a|arm|7|armv7a-linux-androideabi30"
-    "x86_64|amd64||x86_64-linux-android30"
-    "x86|386||i686-linux-android30"
+    # "x86_64|amd64||x86_64-linux-android30"
+    # "x86|386||i686-linux-android30"
 )
 
 for arch_info in "${archs[@]}"; do

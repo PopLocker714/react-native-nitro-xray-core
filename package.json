@@ -1,7 +1,7 @@
 {
   "name": "react-native-nitro-xray-core",
   "version": "0.1.0",
-  "description": "react-native-nitro-xray-core is a react native package built with Nitro",
+  "description": "xray for react native with nitro vpn",
   "main": "./lib/commonjs/index.js",
   "module": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -35,6 +35,7 @@
     "ios/**/*.mm",
     "ios/**/*.cpp",
     "ios/**/*.swift",
+    "ios/Xray.xcframework",
     "app.plugin.js",
     "*.podspec",
     "README.md"
@@ -42,11 +43,11 @@
   "workspaces": [
     "example"
   ],
-  "repository": "https://github.com//react-native-nitro-xray-core.git",
+  "repository": "https://github.com/PopLocker714/react-native-nitro-xray-core.git",
   "author": "",
   "license": "MIT",
-  "bugs": "https://github.com//react-native-nitro-xray-core/issues",
-  "homepage": "https://github.com//react-native-nitro-xray-core#readme",
+  "bugs": "https://github.com/PopLocker714/react-native-nitro-xray-core/issues",
+  "homepage": "https://github.com/PopLocker714/react-native-nitro-xray-core#readme",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"

@@ -1,4 +1,6 @@
-# react-native-nitro-xray-core
+# react-native-nitro-xray-core (rc)
+
+DO NOT USE IN PRODUCTION!!!
 
 A high-performance React Native VPN library powered by the Xray-core engine. Built with Nitro modules for maximum performance and zero C++ bridge overhead.
 

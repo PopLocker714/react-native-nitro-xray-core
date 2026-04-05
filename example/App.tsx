@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {Text, View, StyleSheet, Button, SafeAreaView, ScrollView } from 'react-native';
 import { NitroXrayCore } from 'react-native-nitro-xray-core';
+import { VPN_IP, VPN_PORT, VPN_USER_ID, VPN_SERVER_NAME, VPN_PUBLIC_KEY, VPN_SHORT_ID } from '@env';
 
 const XRAY_CONFIG = {
   "log": { "loglevel": "debug" },
@@ -25,9 +26,9 @@ const XRAY_CONFIG = {
       "protocol": "vless",
       "settings": {
         "vnext": [{
-          "address": "YOUR_IP",
-          "port": 51191,
-          "users": [{"id": "YOUR_USER_ID", "encryption": "none", "flow": "xtls-rprx-vision"}]
+          "address": VPN_IP,
+          "port": Number(VPN_PORT),
+          "users": [{"id": VPN_USER_ID, "encryption": "none", "flow": "xtls-rprx-vision"}]
         }]
       },
       "streamSettings": {
@@ -36,9 +37,9 @@ const XRAY_CONFIG = {
         "realitySettings": {
           "show": false,
           "fingerprint": "chrome",
-          "serverName": "github.com",
-          "publicKey": "YOUR_PUBLIC_KEY",
-          "shortId": "YOUR_SHORT_ID",
+          "serverName": VPN_SERVER_NAME,
+          "publicKey": VPN_PUBLIC_KEY,
+          "shortId": VPN_SHORT_ID,
           "spiderX": ""
         }
       }

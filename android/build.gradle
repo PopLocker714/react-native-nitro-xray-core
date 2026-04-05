@@ -11,7 +11,12 @@ buildscript {
 
 def reactNativeArchitectures() {
   def value = rootProject.getProperties().get("reactNativeArchitectures")
-  return value ? value.split(",") : ["armeabi-v7a", "x86", "x86_64", "arm64-v8a"]
+  def requested = value ? value.split(",") : ["armeabi-v7a", "arm64-v8a"]
+  
+  // Filter only those that have libxray.so
+  return requested.findAll { abi ->
+    file("src/main/jniLibs/${abi}/libxray.so").exists()
+  }
 }
 
 def isNewArchitectureEnabled() {

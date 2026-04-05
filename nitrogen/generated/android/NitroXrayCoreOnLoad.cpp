@@ -27,7 +27,7 @@ int initialize(JavaVM* vm) {
 }
 
 struct JHybridNitroXrayCoreSpecImpl: public jni::JavaClass<JHybridNitroXrayCoreSpecImpl, JHybridNitroXrayCoreSpec::JavaPart> {
-  static constexpr auto kJavaDescriptor = "Lcom/margelo/nitro/nitroxraycore/HybridNitroXrayCore;";
+  static constexpr auto kJavaDescriptor = "Lcom/nitroxraycore/HybridNitroXrayCore;";
   static std::shared_ptr<JHybridNitroXrayCoreSpec> create() {
     static const auto constructorFn = javaClassStatic()->getConstructor<JHybridNitroXrayCoreSpecImpl::javaobject()>();
     jni::local_ref<JHybridNitroXrayCoreSpec::JavaPart> javaPart = javaClassStatic()->newObject(constructorFn);
