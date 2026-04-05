@@ -1,6 +1,6 @@
 {
   "name": "react-native-nitro-xray-core",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "xray for react native with nitro vpn",
   "main": "./lib/commonjs/index.js",
   "module": "./lib/module/index.js",
