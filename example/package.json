@@ -5,6 +5,7 @@
   "scripts": {
     "android": "react-native run-android",
     "ios": "react-native run-ios --simulator='iPhone 16'",
+    "getiosdevice": "xcrun xctrace list devices",
     "lint": "eslint .",
     "start": "react-native start --reset-cache",
     "test": "jest",
