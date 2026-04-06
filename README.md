@@ -70,6 +70,17 @@ Go to the **Apple Developer Portal** and configure your App ID:
 ### 4. Critical Build Settings for the `tunnel` Target
 - **Deployment Target**: Ensure `IPHONEOS_DEPLOYMENT_TARGET` is set accurately (e.g., `15.1`). *If you set it to a future iOS version, iOS will refuse to launch the extension, flag it as "Needs Update", and kill the process with `SIGKILL`.*
 - **Memory Limit**: Network Extensions have a strict 15MB RAM limit on iOS. Our Go binary is tuned via `main_ios.go` (`debug.SetMemoryLimit(14MB)` and `GOGC=10`) to survive, but ensure **no React Native frameworks (like React.framework)** are accidentally linked to the `tunnel` target, or you will immediately crash on startup.
+- **Replace PacketTunnelProvider.swift**
+1. Replace yore ios/tunnel/PacketTunnelProvider.swift on example/ios/tunnel/PacketTunnelProvider.swift
+2. change identifiers
+```swift
+private let kAppGroup  = "group.com.xraycore.example"
+private let logger = Logger(subsystem: "com.xraycore.example.tunnel", category: "PacketTunnel")
+```
+- **Set Bridging Header**:  
+1. Select your `tunnel` target, go to **Build Settings > Filter** write `Bridging Header`.
+2. Set Debug and Release:  `$(SRCROOT)/tunnel/tunnel-Bridging-Header.h`
+
 
 ### 5. Modify PacketTunnelProvider.swift
 Use the provided `HybridNitroXrayCore.swift` (main app) to negotiate permissions and launch the VPN. In your `tunnel` folder, edit `PacketTunnelProvider.swift` to invoke the C-bridge `StartXray(config, fd)` method. Xray will bind to the TUN interface automatically. 
