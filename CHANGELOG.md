@@ -1,3 +1,13 @@
+## [1.0.2](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.0.1...v1.0.2) (2026-04-07)
+
+### 🐛 Bug Fixes
+
+* remove static identifaers ([82ae216](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/82ae21663d0d79a2a782217c6bd11c4bdec1a612))
+
+### 🔄 Code Refactors
+
+* format ([d37a2bd](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/d37a2bd2382313dc144603e4b6ab3fcc5db1eafd))
+
 ## [1.0.1](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.0.0...v1.0.1) (2026-04-05)
 
 ### 🛠️ Other changes
