@@ -7,11 +7,15 @@ import NitroModules
 
 /// Bundle ID of the Packet Tunnel Extension target.
 /// Must match the bundle identifier set in Xcode for the "tunnel" target.
-private let kTunnelBundleID = "com.xraycore.example.tunnel"
+private var kTunnelBundleID: String {
+    return Bundle.main.bundleIdentifier! + ".tunnel"
+}
 
 /// App Group shared between the main app and the extension.
 /// Used to pass the Xray JSON config via shared UserDefaults.
-private let kAppGroup = "group.com.xraycore.example"
+private var kAppGroup: String {
+    return "group." + Bundle.main.bundleIdentifier!
+}
 
 /// UserDefaults key for the VPN config JSON
 private let kConfigKey = "xray_config_json"
