@@ -55,7 +55,7 @@ Environment / `.env`:
 OLCRTC_IMAGE=jojo714/olcrtc:latest
 OLCRTC_CARRIER=wbstream
 OLCRTC_TRANSPORT=vp8channel
-OLCRTC_ROOM_ID=<room-id from https://stream.wb.ru>
+OLCRTC_ROOM_ID=<BARE room UUID from stream.wb.ru — NOT the full URL>
 # OLCRTC_KEY left empty → auto-generated on first run, printed to logs
 ```
 
@@ -71,6 +71,11 @@ Dokploy pulls the image and runs it — no build step. Grab the generated key:
 ```bash
 docker compose logs | grep OLCRTC_KEY   # -> OLCRTC_KEY=<64 hex chars>
 ```
+
+> **wbstream room format:** use the **bare UUID** as `OLCRTC_ROOM_ID` /
+> `roomId`, not the full `https://stream.wb.ru/room/<uuid>` URL — the full URL
+> 404s. Verified end-to-end: with the bare UUID the server joins and the WebRTC
+> peer connection reaches `connected`.
 
 ## 3. Pair the mobile client
 
