@@ -5,6 +5,7 @@ import {
 	Button,
 	SafeAreaView,
 	ScrollView,
+	Share,
 	StyleSheet,
 	Switch,
 	Text,
@@ -51,6 +52,22 @@ function formatBytes(n: number): string {
 	return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
+// Turn any thrown value into a full, readable string (native rejections often
+// have an empty .message, so fall back to the whole object + stack).
+function errStr(e: unknown): string {
+	if (e instanceof Error) {
+		return e.stack ? `${e.message}\n${e.stack}` : e.message || String(e);
+	}
+	if (typeof e === "object" && e !== null) {
+		try {
+			return JSON.stringify(e);
+		} catch {
+			return String(e);
+		}
+	}
+	return String(e);
+}
+
 function formatExpiry(expire: number): string {
 	const date = new Date(expire * 1000);
 	const daysLeft = Math.ceil((date.getTime() - Date.now()) / 86_400_000);
@@ -80,14 +97,44 @@ function App(): React.JSX.Element {
 	const [olcrtcBusy, setOlcrtcBusy] = useState<boolean>(false);
 	const [olcrtcPort, setOlcrtcPort] = useState<number>(0);
 
-	const addLog = (msg: string) =>
-		setLogs((prev) => [...prev.slice(-40), msg]);
+	const addLog = (msg: string) => {
+		// Mirror to the JS console so it also shows in Metro / DevTools.
+		console.log(`[xray] ${msg}`);
+		setLogs((prev) => [...prev.slice(-80), msg]);
+	};
+
+	const shareLogs = async () => {
+		try {
+			await Share.share({ message: logs.join("\n") });
+		} catch (e: unknown) {
+			addLog(`share error: ${errStr(e)}`);
+		}
+	};
+
+	// Catch otherwise-uncaught JS errors and unhandled promise rejections so
+	// they land in the on-screen log instead of vanishing.
+	useEffect(() => {
+		const g = globalThis as any;
+		const prevHandler = g.ErrorUtils?.getGlobalHandler?.();
+		g.ErrorUtils?.setGlobalHandler?.((e: unknown, isFatal?: boolean) => {
+			addLog(`UNCAUGHT${isFatal ? " (fatal)" : ""}: ${errStr(e)}`);
+			prevHandler?.(e, isFatal);
+		});
+		const onRejection = (ev: any) => {
+			addLog(`UNHANDLED REJECTION: ${errStr(ev?.reason ?? ev)}`);
+		};
+		g.addEventListener?.("unhandledrejection", onRejection);
+		return () => {
+			if (prevHandler) g.ErrorUtils?.setGlobalHandler?.(prevHandler);
+			g.removeEventListener?.("unhandledrejection", onRejection);
+		};
+	}, []);
 
 	useEffect(() => {
 		try {
 			setVersion(XrayClient.version());
-		} catch (e: any) {
-			addLog(`version error: ${e.message}`);
+		} catch (e: unknown) {
+			addLog(`version error: ${errStr(e)}`);
 		}
 		try {
 			setKillSwitch(XrayClient.isKillSwitchEnabled());
@@ -134,8 +181,8 @@ function App(): React.JSX.Element {
 						`${info.expire != null ? ` · until ${formatExpiry(info.expire)}` : ""}`,
 				);
 			}
-		} catch (e: any) {
-			addLog(`Subscription error: ${e.message}`);
+		} catch (e: unknown) {
+			addLog(`Subscription error: ${errStr(e)}`);
 		}
 	};
 
@@ -155,9 +202,9 @@ function App(): React.JSX.Element {
 				setOlcrtcPort(0);
 				addLog(`olcrtc stopped.`);
 			}
-		} catch (e: any) {
+		} catch (e: unknown) {
 			setOlcrtcOn(!enabled);
-			addLog(`olcrtc error: ${e.message}`);
+			addLog(`olcrtc error: ${errStr(e)}`);
 		} finally {
 			setOlcrtcBusy(false);
 		}
@@ -176,8 +223,8 @@ function App(): React.JSX.Element {
 			setActiveTag(server.tag);
 			await XrayClient.connect(server, opts);
 			addLog(`Connected to "${server.tag}".`);
-		} catch (e: any) {
-			addLog(`Connect error: ${e.message}`);
+		} catch (e: unknown) {
+			addLog(`Connect error: ${errStr(e)}`);
 			setActiveTag(null);
 		}
 	};
@@ -187,9 +234,9 @@ function App(): React.JSX.Element {
 		try {
 			await XrayClient.setKillSwitch(enabled);
 			addLog(`Kill switch ${enabled ? "ON" : "OFF"}.`);
-		} catch (e: any) {
+		} catch (e: unknown) {
 			setKillSwitch(!enabled);
-			addLog(`Kill switch error: ${e.message}`);
+			addLog(`Kill switch error: ${errStr(e)}`);
 		}
 	};
 
@@ -205,8 +252,8 @@ function App(): React.JSX.Element {
 			setLatencies(byRaw);
 			const alive = results.filter((r) => r.latencyMs !== null).length;
 			addLog(`Ping done: ${alive}/${results.length} reachable.`);
-		} catch (e: any) {
-			addLog(`Ping error: ${e.message}`);
+		} catch (e: unknown) {
+			addLog(`Ping error: ${errStr(e)}`);
 		} finally {
 			setPinging(false);
 		}
@@ -216,8 +263,8 @@ function App(): React.JSX.Element {
 		try {
 			addLog(`Disconnecting…`);
 			await XrayClient.disconnect();
-		} catch (e: any) {
-			addLog(`Disconnect error: ${e.message}`);
+		} catch (e: unknown) {
+			addLog(`Disconnect error: ${errStr(e)}`);
 		}
 	};
 
@@ -324,12 +371,18 @@ function App(): React.JSX.Element {
 				)}
 			</ScrollView>
 
+			<View style={styles.logHeader}>
+				<Text style={styles.logHeaderLabel}>Logs ({logs.length})</Text>
+				<View style={styles.logHeaderButtons}>
+					<Button title="Share" onPress={shareLogs} disabled={logs.length === 0} />
+					<Button title="Clear" onPress={() => setLogs([])} color="#888" />
+				</View>
+			</View>
 			<ScrollView style={styles.logContainer}>
-				{logs.map((log, index) => (
-					<Text key={index} style={styles.logText}>
-						{log}
-					</Text>
-				))}
+				{/* selectable → long-press to select & copy directly, too */}
+				<Text selectable style={styles.logText}>
+					{logs.join("\n")}
+				</Text>
 			</ScrollView>
 		</SafeAreaView>
 	);
@@ -376,9 +429,17 @@ const styles = StyleSheet.create({
 	serverName: { fontSize: 15, fontWeight: "600" },
 	serverMeta: { fontSize: 12, color: "#666", marginTop: 2 },
 	hint: { color: "#999", textAlign: "center", marginTop: 20 },
+	logHeader: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		marginTop: 12,
+	},
+	logHeaderLabel: { fontSize: 13, fontWeight: "600", color: "#333" },
+	logHeaderButtons: { flexDirection: "row", gap: 8 },
 	logContainer: {
 		flex: 1,
-		marginTop: 12,
+		marginTop: 6,
 		backgroundColor: "#f5f5f5",
 		padding: 10,
 		borderRadius: 5,
