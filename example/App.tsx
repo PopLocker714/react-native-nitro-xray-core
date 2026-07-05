@@ -13,9 +13,21 @@ import {
 } from "react-native";
 import {
 	XrayClient,
+	type OlcrtcClientConfig,
 	type ParsedServer,
 	type SubscriptionInfo,
 } from "react-native-nitro-xray-core";
+
+// olcrtc "Russia bypass": xray dials the server through olcrtc's local SOCKS5,
+// which tunnels over a whitelisted WebRTC carrier. carrier/transport/roomId/key
+// MUST match the olcrtc server (deploy/olcrtc). Android only for now.
+const OLCRTC: OlcrtcClientConfig = {
+	carrier: "wbstream",
+	transport: "vp8channel",
+	roomId: "019f32bf-77d4-7d26-864e-40ac21d06662",
+	clientId: "mobile-1",
+	keyHex: "43ef94f0af31259b7caec7a1e6384799937fa032caae2e8379ee9b9d57042eac",
+};
 
 function formatBytes(n: number): string {
 	if (n < 1024) return `${n} B`;
@@ -49,6 +61,9 @@ function App(): React.JSX.Element {
 	const [latencies, setLatencies] = useState<Record<string, number | null>>(
 		{},
 	);
+	const [olcrtcOn, setOlcrtcOn] = useState<boolean>(false);
+	const [olcrtcBusy, setOlcrtcBusy] = useState<boolean>(false);
+	const [olcrtcPort, setOlcrtcPort] = useState<number>(0);
 
 	const addLog = (msg: string) =>
 		setLogs((prev) => [...prev.slice(-40), msg]);
@@ -109,13 +124,42 @@ function App(): React.JSX.Element {
 		}
 	};
 
+	const toggleOlcrtc = async (enabled: boolean) => {
+		if (olcrtcBusy) return;
+		setOlcrtcBusy(true);
+		setOlcrtcOn(enabled);
+		try {
+			if (enabled) {
+				addLog(`Starting olcrtc (${OLCRTC.carrier}/${OLCRTC.transport})…`);
+				await XrayClient.startOlcrtc(OLCRTC);
+				const port = XrayClient.getOlcrtcSocksPort();
+				setOlcrtcPort(port);
+				addLog(`olcrtc up — SOCKS5 on :${port}`);
+			} else {
+				await XrayClient.stopOlcrtc();
+				setOlcrtcPort(0);
+				addLog(`olcrtc stopped.`);
+			}
+		} catch (e: any) {
+			setOlcrtcOn(!enabled);
+			addLog(`olcrtc error: ${e.message}`);
+		} finally {
+			setOlcrtcBusy(false);
+		}
+	};
+
 	const connect = async (server: ParsedServer) => {
 		try {
 			addLog(`Ensuring VPN permission…`);
 			await XrayClient.ensurePermission();
-			addLog(`Connecting to "${server.tag}"…`);
+			// If olcrtc is running, chain xray through its local SOCKS5.
+			const port = XrayClient.getOlcrtcSocksPort();
+			const opts = port > 0 ? { olcrtc: { socksPort: port } } : undefined;
+			addLog(
+				`Connecting to "${server.tag}"${opts ? ` via olcrtc :${port}` : ""}…`,
+			);
 			setActiveTag(server.tag);
-			await XrayClient.connect(server);
+			await XrayClient.connect(server, opts);
 			addLog(`Connected to "${server.tag}".`);
 		} catch (e: any) {
 			addLog(`Connect error: ${e.message}`);
@@ -214,6 +258,18 @@ function App(): React.JSX.Element {
 					Kill switch (block traffic if engine dies)
 				</Text>
 				<Switch value={killSwitch} onValueChange={toggleKillSwitch} />
+			</View>
+
+			<View style={styles.killSwitchRow}>
+				<Text style={styles.killSwitchLabel}>
+					olcrtc bypass (WebRTC side-channel)
+					{olcrtcOn && olcrtcPort > 0 ? ` · SOCKS :${olcrtcPort}` : ""}
+				</Text>
+				<Switch
+					value={olcrtcOn}
+					onValueChange={toggleOlcrtc}
+					disabled={olcrtcBusy}
+				/>
 			</View>
 
 			<ScrollView style={styles.serverList}>
