@@ -4,7 +4,7 @@ task: "Stage 4: olcrtc — chaining + merged core + JNI/spec (startOlcrtc)"
 slug: stage4-olcrtc-chaining
 effort: E3
 phase: complete
-progress: 92/96
+progress: 96/100
 mode: standard
 started: 2026-07-05T12:00:00+03:00
 updated: 2026-07-05T15:40:00+03:00
@@ -163,6 +163,10 @@ The example app shows the subscription plan at a glance — used/total quota and
 ### Stage 4.4 — full native build + deploy assets
 - [x] ISC-95: `cpp-adapter.cpp` compiles against the regenerated `libxray.h` and links the 48 MB `.so` — gradle `buildCMakeDebug[arm64-v8a]` BUILD SUCCESSFUL. This is the gate before `bun run android`; it now passes.
 - [x] ISC-96: olcrtc server `deploy/olcrtc/docker-compose.yml` + `.env.example` + `README.md` created; `docker compose config` validates. Transport defaulted to `vp8channel` to match the native client default (mismatch would break pairing).
+- [x] ISC-97: No official olcrtc image exists (verified: Docker Hub 404, no public GHCR package, CI has no publish job) and canonical repo has no Dockerfile (removed upstream; only the 207-commits-behind alananisimov fork had one). Documented.
+- [x] ISC-98: Self-contained `deploy/olcrtc/Dockerfile` builds CANONICAL olcrtc pinned to the client's commit `1255cf8` (Go 1.26 base — canonical requires go>=1.26.3), vendoring entrypoint/healthcheck (config schema identical to fork, field-verified). Version skew RESOLVED: server == client commit, no client rebuild needed.
+- [x] ISC-99: Image built + smoke-tested locally (216 MB) — boots, generates key, authenticates with wbstream (guest token), reaches join-room (404 only for the fake test room = full pipeline OK).
+- [x] ISC-100: Pushed to `jojo714/olcrtc:latest` + `:canon-1255cf8` (digest b8ab721d); independent `docker pull` after local delete succeeds → Dokploy can pull. Compose is pull-only so the deploy server never compiles.
 - [ ] ISC-94: [DEFERRED-VERIFY] On-device: `bun run android` installs, StartOlcrtc pairs with the docker server and carries traffic on an RF network — Илья runs.
 
 ## Test Strategy
