@@ -224,6 +224,25 @@ function App(): React.JSX.Element {
 		}
 	};
 
+	// olcrtc-only: TUN → olcrtc → server → internet, no VLESS server.
+	const connectOlcrtcOnly = async () => {
+		try {
+			if (!XrayClient.isOlcrtcRunning()) {
+				addLog("Turn on the olcrtc toggle first.");
+				return;
+			}
+			addLog(`Ensuring VPN permission…`);
+			await XrayClient.ensurePermission();
+			addLog(`Connecting via olcrtc only (no VLESS)…`);
+			setActiveTag("olcrtc-only");
+			await XrayClient.connectOlcrtcOnly();
+			addLog(`Connected via olcrtc only.`);
+		} catch (e: unknown) {
+			addLog(`olcrtc-only connect error: ${errStr(e)}`);
+			setActiveTag(null);
+		}
+	};
+
 	const toggleKillSwitch = async (enabled: boolean) => {
 		setKillSwitch(enabled);
 		try {
@@ -326,6 +345,14 @@ function App(): React.JSX.Element {
 					value={olcrtcOn}
 					onValueChange={toggleOlcrtc}
 					disabled={olcrtcBusy}
+				/>
+			</View>
+
+			<View style={styles.row}>
+				<Button
+					title="Connect via olcrtc only (no VLESS)"
+					onPress={connectOlcrtcOnly}
+					disabled={!olcrtcOn || olcrtcPort === 0}
 				/>
 			</View>
 

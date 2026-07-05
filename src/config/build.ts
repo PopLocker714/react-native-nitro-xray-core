@@ -112,6 +112,93 @@ export function buildXrayConfig(
   return config
 }
 
+/** Options for {@link buildOlcrtcTunnelConfig}. */
+export interface OlcrtcTunnelOptions {
+  /** Local SOCKS5 port olcrtc listens on (from `getOlcrtcSocksPort()`). */
+  socksPort: number
+  /** Host olcrtc's SOCKS5 binds to. Default '127.0.0.1'. */
+  socksHost?: string
+  /** Outbound tag for the olcrtc hop (also the getStats tag). Default 'proxy'. */
+  proxyTag?: string
+  /** Xray DNS servers. Default ['1.1.1.1', 'localhost']. */
+  dns?: string[]
+  /** TUN interface name. Default 'tun0'. */
+  tunName?: string
+  /** MTU for the TUN inbound. Default 1500. */
+  mtu?: number
+  /** Xray log level. Default 'warning'. */
+  logLevel?: string
+  /** Emit stats+policy blocks so getStats() works. Default true. */
+  enableStats?: boolean
+}
+
+/**
+ * Build an "olcrtc-only" Xray config: TUN inbound routed straight into a
+ * `socks` outbound pointing at olcrtc's local SOCKS5 — no VLESS/vmess/etc.
+ * server. All device traffic goes TUN → olcrtc → your olcrtc server → internet.
+ * xray is used purely as the TUN↔SOCKS plumbing here.
+ *
+ * olcrtc must already be running (start it first, then pass its SOCKS port).
+ */
+export function buildOlcrtcTunnelConfig(
+  options: OlcrtcTunnelOptions
+): Record<string, unknown> {
+  const proxyTag = options.proxyTag ?? 'proxy'
+  const socksHost = options.socksHost ?? '127.0.0.1'
+  const dns = options.dns ?? ['1.1.1.1', 'localhost']
+  const tunName = options.tunName ?? 'tun0'
+  const mtu = options.mtu ?? 1500
+  const logLevel = options.logLevel ?? 'warning'
+  const enableStats = options.enableStats ?? true
+
+  const config: Record<string, unknown> = {
+    log: { loglevel: logLevel },
+    inbounds: [
+      {
+        tag: 'tun-in',
+        protocol: 'tun',
+        port: 0,
+        settings: { name: tunName, mtu },
+        sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'] },
+      },
+    ],
+    outbounds: [
+      {
+        tag: proxyTag,
+        protocol: 'socks',
+        settings: { servers: [{ address: socksHost, port: options.socksPort }] },
+      },
+      { protocol: 'freedom', tag: 'direct' },
+      { protocol: 'blackhole', tag: 'block' },
+      { protocol: 'dns', tag: 'dns-out' },
+    ],
+    dns: { servers: dns },
+    routing: {
+      domainStrategy: 'IPIfNonMatch',
+      rules: [
+        { type: 'field', port: 53, outboundTag: 'dns-out' },
+        { type: 'field', ip: PRIVATE_RANGES, outboundTag: 'direct' },
+        { type: 'field', inboundTag: ['tun-in'], outboundTag: proxyTag },
+      ],
+    },
+  }
+
+  if (enableStats) {
+    config.stats = {}
+    config.policy = {
+      levels: { '0': { statsUserUplink: true, statsUserDownlink: true } },
+      system: {
+        statsInboundUplink: true,
+        statsInboundDownlink: true,
+        statsOutboundUplink: true,
+        statsOutboundDownlink: true,
+      },
+    }
+  }
+
+  return config
+}
+
 function buildOutbound(
   server: ParsedServer,
   tag: string,

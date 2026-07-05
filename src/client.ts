@@ -1,7 +1,7 @@
 import { NitroXrayCore, addStateListener } from './native'
 import type { StateListener } from './native'
-import { buildXrayConfig } from './config/build'
-import type { BuildConfigOptions } from './config/build'
+import { buildXrayConfig, buildOlcrtcTunnelConfig } from './config/build'
+import type { BuildConfigOptions, OlcrtcTunnelOptions } from './config/build'
 import {
   parseShareLink,
   parseSubscription,
@@ -252,6 +252,25 @@ export const XrayClient = {
   /** Stop the olcrtc client and release its SOCKS5 listener. */
   async stopOlcrtc(): Promise<void> {
     await NitroXrayCore.stopOlcrtc()
+  },
+
+  /**
+   * Connect using olcrtc as the tunnel WITHOUT a VLESS/proxy server: TUN →
+   * olcrtc's local SOCKS5 → your olcrtc server → internet. Requires olcrtc to
+   * be running already (call {@link startOlcrtc} first). xray is used only as
+   * the TUN↔SOCKS plumbing; no subscription server is involved.
+   */
+  async connectOlcrtcOnly(
+    options?: Omit<OlcrtcTunnelOptions, 'socksPort' | 'socksHost'>
+  ): Promise<void> {
+    const socksPort = NitroXrayCore.getOlcrtcSocksPort()
+    if (socksPort <= 0) {
+      throw new Error('olcrtc is not running — call startOlcrtc() first')
+    }
+    ensureSessionStateHook()
+    if (!NitroXrayCore.isVpnConnected()) resetTrafficSessions()
+    const config = buildOlcrtcTunnelConfig({ socksPort, ...options })
+    await NitroXrayCore.startXray(JSON.stringify(config))
   },
 
   /**

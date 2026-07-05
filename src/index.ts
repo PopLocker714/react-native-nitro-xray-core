@@ -28,8 +28,12 @@ export { urlTest } from './urltest/urltest'
 export type { UrlTestOptions, UrlTestResult } from './urltest/urltest'
 
 // Config building
-export { buildXrayConfig } from './config/build'
-export type { BuildConfigOptions, OlcrtcChainOptions } from './config/build'
+export { buildXrayConfig, buildOlcrtcTunnelConfig } from './config/build'
+export type {
+  BuildConfigOptions,
+  OlcrtcChainOptions,
+  OlcrtcTunnelOptions,
+} from './config/build'
 
 // olcrtc client (WebRTC side-channel "Russia bypass")
 export type { OlcrtcClientConfig } from './olcrtc/types'
