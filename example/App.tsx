@@ -38,6 +38,7 @@ const OLCRTC: OlcrtcClientConfig = {
 	vp8Fps: 30,
 	vp8BatchSize: 64,
 	readyTimeoutMs: 30000,
+	debug: true, // olcrtc internals → logcat (adb logcat -s XrayGo) for diagnosis
 };
 
 function formatBytes(n: number): string {

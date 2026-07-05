@@ -35,4 +35,6 @@ export interface OlcrtcClientConfig {
    */
   vp8Fps?: number
   vp8BatchSize?: number
+  /** Emit olcrtc's verbose internal logs (pion/ICE/KCP) to Android logcat. */
+  debug?: boolean
 }

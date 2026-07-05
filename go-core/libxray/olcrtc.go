@@ -41,7 +41,16 @@ type olcrtcConfig struct {
 	// by the engine); lower fps = less CPU. 0 keeps the engine default.
 	Vp8Fps       int `json:"vp8Fps"`
 	Vp8BatchSize int `json:"vp8BatchSize"`
+	// Emit olcrtc's verbose internal logs (pion/ICE/KCP) to Android logcat under
+	// tag "XrayGo" — use to diagnose relay vs direct paths and packet loss.
+	Debug bool `json:"debug"`
 }
+
+// olcrtcLogWriter pipes olcrtc's internal logs into Android logcat (via the
+// same C logger main.go uses), so pion/ICE/KCP diagnostics are visible.
+type olcrtcLogWriter struct{}
+
+func (olcrtcLogWriter) WriteLog(msg string) { logInfo("olcrtc: " + msg) }
 
 const defaultOlcrtcSocksPort = 10808
 
@@ -74,6 +83,18 @@ func StartOlcrtc(configStr *C.char) C.int {
 	if cfg.ReadyTimeoutMs <= 0 {
 		cfg.ReadyTimeoutMs = 15000
 	}
+
+	// A previous instance may still be alive (stale session after a reload or a
+	// double toggle); mobile.Start would return "already running". Stop it so a
+	// fresh start always succeeds.
+	if mobile.IsRunning() {
+		logInfo("olcrtc: stopping stale instance before restart")
+		mobile.Stop()
+	}
+
+	// Route olcrtc's internal logs to logcat, and go verbose when requested.
+	mobile.SetLogWriter(olcrtcLogWriter{})
+	mobile.SetDebug(cfg.Debug)
 
 	// Register built-in carriers/links/transports before starting.
 	mobile.SetProviders()
