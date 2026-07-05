@@ -29,4 +29,10 @@ export interface OlcrtcClientConfig {
   transport?: string
   /** Max wait for the SOCKS listener to become ready, ms. Default 15000. */
   readyTimeoutMs?: number
+  /**
+   * vp8channel throughput tuning. Bigger `vp8BatchSize` = higher speed (engine
+   * caps at 64); lower `vp8Fps` = less CPU. Omit to keep engine defaults.
+   */
+  vp8Fps?: number
+  vp8BatchSize?: number
 }

@@ -37,6 +37,10 @@ type olcrtcConfig struct {
 	Transport string `json:"transport"`
 	// How long to wait for the SOCKS listener to become ready. Default 15000ms.
 	ReadyTimeoutMs int `json:"readyTimeoutMs"`
+	// vp8channel throughput tuning. Bigger batch = higher speed (capped at 64
+	// by the engine); lower fps = less CPU. 0 keeps the engine default.
+	Vp8Fps       int `json:"vp8Fps"`
+	Vp8BatchSize int `json:"vp8BatchSize"`
 }
 
 const defaultOlcrtcSocksPort = 10808
@@ -79,6 +83,10 @@ func StartOlcrtc(configStr *C.char) C.int {
 	}
 	if cfg.DNSServer != "" {
 		mobile.SetDNS(cfg.DNSServer)
+	}
+	// vp8channel throughput tuning (no-op for other transports).
+	if cfg.Vp8Fps > 0 || cfg.Vp8BatchSize > 0 {
+		mobile.SetVP8Options(cfg.Vp8Fps, cfg.Vp8BatchSize)
 	}
 
 	var err error

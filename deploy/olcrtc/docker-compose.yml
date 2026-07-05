@@ -38,6 +38,9 @@ services:
       OLCRTC_KEY: "${OLCRTC_KEY:-}"
       OLCRTC_KEY_FILE: /var/lib/olcrtc/key.hex
       OLCRTC_DNS: "${OLCRTC_DNS:-8.8.8.8:53}"
+      # vp8channel throughput tuning — match the mobile client (batch max 64).
+      OLCRTC_VP8_FPS: "${OLCRTC_VP8_FPS:-30}"
+      OLCRTC_VP8_BATCH: "${OLCRTC_VP8_BATCH:-64}"
       OLCRTC_DEBUG: "${OLCRTC_DEBUG:-false}"
     volumes:
       # Persists the generated key across restarts.
