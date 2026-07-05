@@ -20,16 +20,31 @@ pulls.** No compilation on the server.
 
 ## 1. Build + push (dev box, one time)
 
+Build **multi-arch** — Dokploy servers are usually `linux/amd64`; a Mac-only
+build is `linux/arm64` and the server errors with `no matching manifest for
+linux/amd64`. One-time emulator setup, then buildx:
+
 ```bash
-# from the repo root
-docker build -t <YOUR_DOCKERHUB_USER>/olcrtc:latest deploy/olcrtc
-docker login                       # your Docker Hub creds
-docker push <YOUR_DOCKERHUB_USER>/olcrtc:latest
+docker run --privileged --rm tonistiigi/binfmt --install all   # once (adds amd64/rosetta)
+docker buildx create --name olcrtc-multi --driver docker-container --use   # once
+docker login
+
+docker buildx build --builder olcrtc-multi \
+  --platform linux/amd64,linux/arm64 \
+  -t <YOUR_DOCKERHUB_USER>/olcrtc:latest \
+  --push deploy/olcrtc
 ```
 
-Verified locally: image builds (~216 MB), server boots, generates a key, and
-authenticates with the carrier (wbstream guest token) — it only needs a real
-room to fully connect.
+Verified: multi-arch manifest (amd64 + arm64) pushed, `docker pull --platform
+linux/amd64` succeeds, and the amd64 image boots, generates a key, and connects
+to the carrier.
+
+> **jitsi gotcha:** the public `meet.jit.si` now requires a JWT (`token
+> required`) — the anonymous guest flow olcrtc uses is rejected there. Use a
+> **self-hosted Jitsi** with anonymous access enabled (jitsi's default), or a
+> jitsi server that allows guests, or set `OLCRTC_...` auth token. If you'd
+> rather not run Jitsi, switch to `wbstream`/`telemost` with `vp8channel`
+> (datachannel doesn't work on those).
 
 ## 2. Deploy on Dokploy (pull-only)
 
