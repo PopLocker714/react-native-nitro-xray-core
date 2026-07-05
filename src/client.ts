@@ -303,4 +303,14 @@ export const XrayClient = {
       await NitroXrayCore.requestVpnPermission()
     }
   },
+
+  /**
+   * Request the POST_NOTIFICATIONS permission (Android 13+). Required for the
+   * foreground VPN notification to be visible — without it the service still
+   * runs but its notification is suppressed. Resolves to whether it's granted.
+   * No-op-ish on older Android / iOS (resolves true).
+   */
+  async requestNotificationPermission(): Promise<boolean> {
+    return NitroXrayCore.requestNotificationPermission()
+  },
 }

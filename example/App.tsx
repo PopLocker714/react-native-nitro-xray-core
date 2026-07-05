@@ -153,6 +153,11 @@ function App(): React.JSX.Element {
 		} catch {
 			// no-op on iOS
 		}
+		// Ask for notification permission up front so the VPN notification (and
+		// its Disconnect button) is visible on Android 13+.
+		XrayClient.requestNotificationPermission()
+			.then((granted) => addLog(`Notification permission: ${granted ? "granted" : "denied"}`))
+			.catch((e: unknown) => addLog(`Notification permission error: ${errStr(e)}`));
 		const unsubscribe = XrayClient.onState((s, message) => {
 			setState(s);
 			addLog(`state → ${s}${message ? ` (${message})` : ""}`);
