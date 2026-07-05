@@ -1,58 +1,56 @@
-# olcrtc server (docker compose)
+# olcrtc server (prebuilt image → Dokploy pull)
 
 The exit side of the WebRTC side-channel. The mobile app runs the olcrtc
 **client** natively (`XrayClient.startOlcrtc`); this container is the **server**
-it connects to. `carrier`, `transport`, `room`, and `key` must be identical on
+it pairs with. `carrier`, `transport`, `room`, and `key` must be identical on
 both sides.
 
-> **There is no official olcrtc image, and the canonical repo has no Dockerfile.**
-> Verified 2026-07-05: nothing on Docker Hub / GHCR, CI has no image-push job, and
-> `openlibrecommunity/olcrtc` (where the mobile client is pinned) removed its
-> Docker files upstream. The Docker infra survives only in the `alananisimov`
-> fork at commit `24ca5b3`, which this compose builds from via a remote git
-> context — Dokploy builds it straight from GitHub, no local clone.
->
-> ⚠️ **Version skew:** that fork commit is ~207 commits behind the canonical
-> repo the mobile client links. For guaranteed protocol compatibility, pin the
-> mobile client's `go-core/go.mod` olcrtc dependency to the SAME commit
-> `24ca5b354c3e7215c937d966c26b2526411e3043` and rebuild. Verified locally: the
-> image builds (207 MB) and the server boots, generates a key, and reaches the
-> carrier.
+> **No official olcrtc image exists** (verified: nothing on Docker Hub / GHCR,
+> CI has no publish job), and the canonical repo has no Dockerfile. So this
+> folder ships its own `Dockerfile` that builds **canonical olcrtc pinned to the
+> same commit the mobile client links** (`1255cf8`) — server and client share
+> the protocol. The `Dockerfile` vendors the entrypoint/healthcheck (the config
+> schema is identical to the old fork's, verified).
 
-## Run (Dokploy or plain compose)
+## Why prebuilt (don't build on the deploy server)
+
+The build is a full Go compile of pion/webrtc + olcrtc — too heavy for a small
+VPS. So **build once on a dev box, push to your registry, and Dokploy just
+pulls.** No compilation on the server.
+
+## 1. Build + push (dev box, one time)
 
 ```bash
-# 1. Configure
-cp .env.example .env
-#   edit .env: set OLCRTC_CARRIER, OLCRTC_ROOM_ID (leave OLCRTC_KEY empty)
-
-# 2. Build (from GitHub, no local clone) + start
-docker compose up -d --build
-
-# 3. Grab the auto-generated key from the logs
-docker compose logs | grep OLCRTC_KEY
-#   -> OLCRTC_KEY=<64 hex chars>
+# from the repo root
+docker build -t <YOUR_DOCKERHUB_USER>/olcrtc:latest deploy/olcrtc
+docker login                       # your Docker Hub creds
+docker push <YOUR_DOCKERHUB_USER>/olcrtc:latest
 ```
 
-### On Dokploy
+Verified locally: image builds (~216 MB), server boots, generates a key, and
+authenticates with the carrier (wbstream guest token) — it only needs a real
+room to fully connect.
 
-Two equivalent ways, both without a published image:
+## 2. Deploy on Dokploy (pull-only)
 
-1. **Compose service** (this file) — paste it / point Dokploy at this repo path.
-   The `build.context: https://github.com/openlibrecommunity/olcrtc.git#master`
-   makes Dokploy build from GitHub. Set the env vars from `.env.example` in the
-   Dokploy service's Environment tab.
-2. **Application** — new Dokploy *Application*, Source = the GitHub repo
-   `openlibrecommunity/olcrtc`, Build Type = **Dockerfile**, and add the same
-   env vars. No compose needed; Dokploy clones and builds the Dockerfile.
+Point Dokploy at this compose (or paste it). Set these in the service's
+Environment / `.env`:
 
-If you'd rather pull an image than build, the only way is to publish one
-yourself (build the Dockerfile, push to your GHCR/registry, then swap the
-`build:` block for `image: <your-registry>/olcrtc:<tag>`).
+```
+OLCRTC_IMAGE=<YOUR_DOCKERHUB_USER>/olcrtc:latest
+OLCRTC_CARRIER=wbstream
+OLCRTC_TRANSPORT=vp8channel
+OLCRTC_ROOM_ID=<room-id>
+# OLCRTC_KEY left empty → auto-generated on first run, printed to logs
+```
 
-## Pair the mobile client
+Dokploy pulls the image and runs it — no build step. Grab the generated key:
 
-Put the same four values into the client config, then chain xray through it:
+```bash
+docker compose logs | grep OLCRTC_KEY   # -> OLCRTC_KEY=<64 hex chars>
+```
+
+## 3. Pair the mobile client
 
 ```ts
 await XrayClient.startOlcrtc({
@@ -62,21 +60,15 @@ await XrayClient.startOlcrtc({
   keyHex:  '<64 hex from logs>',  // = OLCRTC_KEY
   transport: 'vp8channel',        // = OLCRTC_TRANSPORT (must match)
 })
-
 const port = XrayClient.getOlcrtcSocksPort()
 await XrayClient.connect(server, { olcrtc: { socksPort: port } })
 ```
 
 ## Notes
 
-- **Transport must match.** The native client defaults to `vp8channel`; `.env`
-  defaults to the same. If you change one, change both.
-- **Key.** Auto-generated on first `srv` run and persisted in the
-  `olcrtc-state` volume. To rotate, clear the volume or set `OLCRTC_KEY`.
-- **Room.** Create it on the carrier's site first (e.g. stream.wb.ru for
-  wbstream) and use its ID/URL.
-- The server needs outbound network to both the carrier's WebRTC service and
-  wherever it egresses (your xray/VLESS server).
-- olcrtc is early beta — WebRTC DataChannel throughput is limited; treat this as
-  the optional RF-mobile bypass path, not the default route.
-```
+- **Transport must match** on both sides (native client defaults to vp8channel).
+- **Rebuild** only when bumping the olcrtc version: change `OLCRTC_REF` in the
+  `Dockerfile` (keep it equal to the client's `go-core/go.mod` olcrtc commit),
+  rebuild, push, and `docker compose pull && up -d` on Dokploy.
+- **Room** must be created on the carrier's site first (e.g. stream.wb.ru).
+- olcrtc is early beta — treat this as the optional RF-mobile bypass path.

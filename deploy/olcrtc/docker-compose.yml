@@ -1,43 +1,34 @@
 # olcrtc SERVER — the exit side of the WebRTC side-channel.
 #
-# The mobile app runs the olcrtc CLIENT natively (XrayClient.startOlcrtc);
-# this container is the SERVER it pairs with. carrier + transport + room + key
-# MUST match on both sides (see manual.md: "должны совпадать с сервером").
+# The mobile app runs the olcrtc CLIENT natively (XrayClient.startOlcrtc); this
+# container is the SERVER it pairs with. carrier + transport + room + key MUST
+# match on both sides (manual.md: "должны совпадать с сервером").
 #
-# olcrtc publishes NO official image (verified: not on Docker Hub, not on GHCR,
-# and its CI has no image-push job). So there is nothing to `image:` pull.
-# Instead of a local clone, this builds straight from the GitHub repo via a
-# BuildKit remote git context — Dokploy/Compose fetches and builds it, no local
-# source and no registry needed. Pin a tag/commit by changing the #master ref.
+# PULL-ONLY: this pulls a prebuilt image so the deploy server never compiles.
+# Build + push the image from a dev box first (see README / Dockerfile):
+#   docker build -t <you>/olcrtc:latest deploy/olcrtc
+#   docker push  <you>/olcrtc:latest
+# then set OLCRTC_IMAGE in .env. The image is built from CANONICAL olcrtc pinned
+# to the client's commit, so client and server share the protocol.
 #
 # First `srv` run auto-generates the 64-hex encryption key, persists it to the
-# volume, and prints `OLCRTC_KEY=...` to the logs. Copy that key into the
-# mobile client config (OlcrtcClientConfig.keyHex).
+# volume, and prints `OLCRTC_KEY=...` to the logs. Copy that key into the mobile
+# client config (OlcrtcClientConfig.keyHex).
 
 services:
   olcrtc-server:
-    build:
-      # The Docker infra (Dockerfile, entrypoint) lives ONLY in the
-      # alananisimov fork — canonical openlibrecommunity/olcrtc has no
-      # Dockerfile (it was removed upstream). This pins the fork commit that
-      # still ships it. NOTE: this commit is behind canonical; keep the mobile
-      # client pinned to the same commit for protocol compatibility.
-      context: "https://github.com/alananisimov/olcrtc.git#24ca5b354c3e7215c937d966c26b2526411e3043"
-    image: olcrtc/server:local
+    image: "${OLCRTC_IMAGE:?set OLCRTC_IMAGE to your pushed image, e.g. youruser/olcrtc:latest}"
     container_name: olcrtc-server
     restart: unless-stopped
     environment:
       OLCRTC_MODE: srv
       # jitsi | telemost | wbstream — whitelisted carrier both sides paras on.
       OLCRTC_CARRIER: "${OLCRTC_CARRIER:?set OLCRTC_CARRIER in .env}"
-      # MUST equal the mobile client's transport. The native client defaults to
-      # vp8channel, so this defaults to vp8channel too. Change both together.
+      # MUST equal the mobile client's transport (native default: vp8channel).
       OLCRTC_TRANSPORT: "${OLCRTC_TRANSPORT:-vp8channel}"
-      # Room the client and server both join on the carrier (create it on the
-      # carrier's site; for wbstream use its room ID, for jitsi a meeting URL).
+      # Room both sides join on the carrier (create it on the carrier's site).
       OLCRTC_ROOM_ID: "${OLCRTC_ROOM_ID:?set OLCRTC_ROOM_ID in .env}"
-      # Leave OLCRTC_KEY empty to auto-generate on first run (saved to the
-      # volume, printed to logs). Set it explicitly to reuse an existing key.
+      # Leave empty to auto-generate on first run (saved to the volume, logged).
       OLCRTC_KEY: "${OLCRTC_KEY:-}"
       OLCRTC_KEY_FILE: /var/lib/olcrtc/key.hex
       OLCRTC_DNS: "${OLCRTC_DNS:-8.8.8.8:53}"
