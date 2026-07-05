@@ -17,17 +17,20 @@
 
 services:
   olcrtc-server:
-    image: "${OLCRTC_IMAGE:?set OLCRTC_IMAGE to your pushed image, e.g. youruser/olcrtc:latest}"
+    # Pulls the prebuilt image; override with OLCRTC_IMAGE if you retag.
+    image: "${OLCRTC_IMAGE:-jojo714/olcrtc:latest}"
     container_name: olcrtc-server
     restart: unless-stopped
     environment:
       OLCRTC_MODE: srv
-      # jitsi | telemost | wbstream — whitelisted carrier both sides paras on.
-      OLCRTC_CARRIER: "${OLCRTC_CARRIER:?set OLCRTC_CARRIER in .env}"
-      # MUST equal the mobile client's transport (native default: vp8channel).
-      OLCRTC_TRANSPORT: "${OLCRTC_TRANSPORT:-vp8channel}"
-      # Room both sides join on the carrier (create it on the carrier's site).
-      OLCRTC_ROOM_ID: "${OLCRTC_ROOM_ID:?set OLCRTC_ROOM_ID in .env}"
+      # jitsi | telemost | wbstream. jitsi+datachannel is the fastest, most
+      # stable combo (fast.ru.md) — the default here.
+      OLCRTC_CARRIER: "${OLCRTC_CARRIER:-jitsi}"
+      # MUST equal the mobile client's transport. NOTE the native client
+      # defaults to vp8channel, so pass transport:'datachannel' in startOlcrtc.
+      OLCRTC_TRANSPORT: "${OLCRTC_TRANSPORT:-datachannel}"
+      # For jitsi, room = the FULL meeting URL (e.g. https://meet.jit.si/myroom).
+      OLCRTC_ROOM_ID: "${OLCRTC_ROOM_ID:?set OLCRTC_ROOM_ID (jitsi meeting URL) in .env}"
       # Leave empty to auto-generate on first run (saved to the volume, logged).
       OLCRTC_KEY: "${OLCRTC_KEY:-}"
       OLCRTC_KEY_FILE: /var/lib/olcrtc/key.hex
