@@ -4,9 +4,11 @@
 # this container is the SERVER it pairs with. carrier + transport + room + key
 # MUST match on both sides (see manual.md: "должны совпадать с сервером").
 #
-# olcrtc has no published image — this builds from source. Put a clone of
-# https://github.com/openlibrecommunity/olcrtc next to this file (./olcrtc),
-# then: docker compose up -d --build
+# olcrtc publishes NO official image (verified: not on Docker Hub, not on GHCR,
+# and its CI has no image-push job). So there is nothing to `image:` pull.
+# Instead of a local clone, this builds straight from the GitHub repo via a
+# BuildKit remote git context — Dokploy/Compose fetches and builds it, no local
+# source and no registry needed. Pin a tag/commit by changing the #master ref.
 #
 # First `srv` run auto-generates the 64-hex encryption key, persists it to the
 # volume, and prints `OLCRTC_KEY=...` to the logs. Copy that key into the
@@ -15,7 +17,7 @@
 services:
   olcrtc-server:
     build:
-      context: ./olcrtc
+      context: "https://github.com/openlibrecommunity/olcrtc.git#master"
     image: olcrtc/server:local
     container_name: olcrtc-server
     restart: unless-stopped

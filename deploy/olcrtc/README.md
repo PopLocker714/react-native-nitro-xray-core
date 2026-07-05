@@ -5,27 +5,42 @@ The exit side of the WebRTC side-channel. The mobile app runs the olcrtc
 it connects to. `carrier`, `transport`, `room`, and `key` must be identical on
 both sides.
 
-> olcrtc has no published Docker image, so this builds from source. The repo
-> already ships `docker-compose.server.yml` / `docker-compose.client.yml` at its
-> root — this folder is a trimmed, documented server setup with a `.env`.
+> **There is no official olcrtc image.** Verified 2026-07-05: nothing on Docker
+> Hub (`olcrtc/*`, `openlibrecommunity/*` → 404), no public GHCR package, and
+> the repo's CI has no image-push job. So the compose can't `image:`-pull one —
+> it builds from source. To avoid a local clone, it uses a **remote git build
+> context**, so Dokploy builds straight from GitHub.
 
-## Run
+## Run (Dokploy or plain compose)
 
 ```bash
-# 1. Clone olcrtc source next to this file
-git clone https://github.com/openlibrecommunity/olcrtc ./olcrtc
-
-# 2. Configure
+# 1. Configure
 cp .env.example .env
 #   edit .env: set OLCRTC_CARRIER, OLCRTC_ROOM_ID (leave OLCRTC_KEY empty)
 
-# 3. Build + start
+# 2. Build (from GitHub, no local clone) + start
 docker compose up -d --build
 
-# 4. Grab the auto-generated key from the logs
+# 3. Grab the auto-generated key from the logs
 docker compose logs | grep OLCRTC_KEY
 #   -> OLCRTC_KEY=<64 hex chars>
 ```
+
+### On Dokploy
+
+Two equivalent ways, both without a published image:
+
+1. **Compose service** (this file) — paste it / point Dokploy at this repo path.
+   The `build.context: https://github.com/openlibrecommunity/olcrtc.git#master`
+   makes Dokploy build from GitHub. Set the env vars from `.env.example` in the
+   Dokploy service's Environment tab.
+2. **Application** — new Dokploy *Application*, Source = the GitHub repo
+   `openlibrecommunity/olcrtc`, Build Type = **Dockerfile**, and add the same
+   env vars. No compose needed; Dokploy clones and builds the Dockerfile.
+
+If you'd rather pull an image than build, the only way is to publish one
+yourself (build the Dockerfile, push to your GHCR/registry, then swap the
+`build:` block for `image: <your-registry>/olcrtc:<tag>`).
 
 ## Pair the mobile client
 
