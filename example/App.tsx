@@ -21,13 +21,28 @@ import {
 // olcrtc "Russia bypass": xray dials the server through olcrtc's local SOCKS5,
 // which tunnels over a whitelisted WebRTC carrier. carrier/transport/roomId/key
 // MUST match the olcrtc server (deploy/olcrtc). Android only for now.
+//
+// jitsi + datachannel is the FASTEST transport (datachannel > vp8channel >
+// seichannel > videochannel). Uses meet1.arbitr.ru (public jitsi that allows
+// anonymous + datachannel — verified). For jitsi, roomId = the FULL URL.
+// ⚠️ meet1.arbitr.ru must be reachable/whitelisted on your mobile network.
 const OLCRTC: OlcrtcClientConfig = {
-	carrier: "wbstream",
-	transport: "vp8channel",
-	roomId: "019f32bf-77d4-7d26-864e-40ac21d06662",
+	carrier: "jitsi",
+	transport: "datachannel",
+	roomId: "https://meet1.arbitr.ru/NitroOlcDcb019f32bf",
 	clientId: "mobile-1",
 	keyHex: "43ef94f0af31259b7caec7a1e6384799937fa032caae2e8379ee9b9d57042eac",
 };
+
+// Fallback if meet1.arbitr.ru isn't whitelisted for you — wbstream is slower
+// (vp8channel) but works anonymously and is RF-whitelisted:
+// const OLCRTC: OlcrtcClientConfig = {
+// 	carrier: "wbstream",
+// 	transport: "vp8channel",
+// 	roomId: "019f32bf-77d4-7d26-864e-40ac21d06662",
+// 	clientId: "mobile-1",
+// 	keyHex: "43ef94f0af31259b7caec7a1e6384799937fa032caae2e8379ee9b9d57042eac",
+// };
 
 function formatBytes(n: number): string {
 	if (n < 1024) return `${n} B`;
