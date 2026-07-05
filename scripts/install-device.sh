@@ -41,14 +41,14 @@ if [ -z "$DEVICE" ]; then
   adb devices >&2
   exit 1
 fi
-echo "▶ Target device: $DEVICE"
+echo ">> Target device: $DEVICE"
 
 if [ "$BUILD_NATIVE" = "1" ]; then
-  echo "▶ Rebuilding merged native libxray.so (xray + olcrtc)…"
+  echo ">> Rebuilding merged native libxray.so (xray + olcrtc)..."
   ( cd "$REPO_ROOT/go-core" && bash build_android.sh )
 fi
 
-echo "▶ Building release APK (JS bundle embedded)…"
+echo ">> Building release APK (JS bundle embedded)..."
 ( cd "$ANDROID_DIR" && ./gradlew assembleRelease )
 
 if [ ! -f "$APK" ]; then
@@ -56,13 +56,13 @@ if [ ! -f "$APK" ]; then
   exit 1
 fi
 
-echo "▶ Installing on $DEVICE…"
+echo ">> Installing on $DEVICE..."
 adb -s "$DEVICE" install -r "$APK"
 
-echo "▶ Launching…"
+echo ">> Launching..."
 adb -s "$DEVICE" shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
 
 echo
-echo "✅ Installed and launched on $DEVICE."
+echo "OK: Installed and launched on $DEVICE."
 echo "   APK: $APK"
 echo "   Sideload elsewhere: adb install -r \"$APK\"  (or copy the APK to the phone)"
