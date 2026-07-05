@@ -1,6 +1,6 @@
 import { SUB_URL } from "@env";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	Button,
 	SafeAreaView,
@@ -92,6 +92,12 @@ function App(): React.JSX.Element {
 	const [olcrtcOn, setOlcrtcOn] = useState<boolean>(false);
 	const [olcrtcBusy, setOlcrtcBusy] = useState<boolean>(false);
 	const [olcrtcPort, setOlcrtcPort] = useState<number>(0);
+	// vp8channel fps — tunable; applies on the next olcrtc start. Higher may lift
+	// throughput at more CPU. Default 60 (experiment vs the recommended 30).
+	const [vp8Fps, setVp8Fps] = useState<number>(60);
+	// Live download rate (bytes/s) for comparing settings.
+	const [downRate, setDownRate] = useState<number>(0);
+	const prevDownRef = useRef<number>(0);
 
 	const addLog = (msg: string) => {
 		// Mirror to the JS console so it also shows in Metro / DevTools.
@@ -151,10 +157,16 @@ function App(): React.JSX.Element {
 	// Poll live traffic counters while connected.
 	useEffect(() => {
 		if (state !== "connected") return;
+		prevDownRef.current = 0;
 		const id = setInterval(async () => {
 			try {
 				const s = await XrayClient.stats();
 				setStats({ up: s.uplink, down: s.downlink });
+				// bytes since last poll (~1s) ≈ bytes/s
+				if (prevDownRef.current > 0) {
+					setDownRate(Math.max(0, s.downlink - prevDownRef.current));
+				}
+				prevDownRef.current = s.downlink;
 			} catch {
 				// ignore transient stats errors
 			}
@@ -188,8 +200,10 @@ function App(): React.JSX.Element {
 		setOlcrtcOn(enabled);
 		try {
 			if (enabled) {
-				addLog(`Starting olcrtc (${OLCRTC.carrier}/${OLCRTC.transport})…`);
-				await XrayClient.startOlcrtc(OLCRTC);
+				addLog(
+					`Starting olcrtc (${OLCRTC.carrier}/${OLCRTC.transport}, vp8 fps=${vp8Fps})…`,
+				);
+				await XrayClient.startOlcrtc({ ...OLCRTC, vp8Fps });
 				const port = XrayClient.getOlcrtcSocksPort();
 				setOlcrtcPort(port);
 				addLog(`olcrtc up — SOCKS5 on :${port}`);
@@ -293,6 +307,7 @@ function App(): React.JSX.Element {
 			<Text style={styles.status}>
 				↑ {formatBytes(stats.up)}   ↓ {formatBytes(stats.down)}
 			</Text>
+			<Text style={styles.speed}>▼ {formatBytes(downRate)}/s</Text>
 			{subInfo && (
 				<View style={styles.subInfoBox}>
 					{(subInfo.upload != null ||
@@ -347,6 +362,30 @@ function App(): React.JSX.Element {
 					onValueChange={toggleOlcrtc}
 					disabled={olcrtcBusy}
 				/>
+			</View>
+
+			<View style={styles.killSwitchRow}>
+				<Text style={styles.killSwitchLabel}>
+					vp8 fps (applies on next olcrtc start)
+				</Text>
+				<View style={styles.fpsButtons}>
+					{[30, 60, 90].map((f) => (
+						<TouchableOpacity
+							key={f}
+							onPress={() => setVp8Fps(f)}
+							style={[styles.fpsChip, vp8Fps === f && styles.fpsChipActive]}
+						>
+							<Text
+								style={[
+									styles.fpsChipText,
+									vp8Fps === f && styles.fpsChipTextActive,
+								]}
+							>
+								{f}
+							</Text>
+						</TouchableOpacity>
+					))}
+				</View>
 			</View>
 
 			<View style={styles.row}>
@@ -415,6 +454,23 @@ const styles = StyleSheet.create({
 	container: { flex: 1, padding: 16, backgroundColor: "#fff" },
 	title: { fontSize: 22, fontWeight: "bold", textAlign: "center" },
 	status: { fontSize: 14, textAlign: "center", color: "#333", marginTop: 4 },
+	speed: {
+		fontSize: 16,
+		fontWeight: "700",
+		textAlign: "center",
+		color: "#2e7d32",
+		marginTop: 2,
+	},
+	fpsButtons: { flexDirection: "row", gap: 6 },
+	fpsChip: {
+		paddingVertical: 4,
+		paddingHorizontal: 12,
+		borderRadius: 14,
+		backgroundColor: "#eee",
+	},
+	fpsChipActive: { backgroundColor: "#2e7d32" },
+	fpsChipText: { fontSize: 13, fontWeight: "600", color: "#333" },
+	fpsChipTextActive: { color: "#fff" },
 	subInfoBox: {
 		marginTop: 8,
 		paddingVertical: 6,
