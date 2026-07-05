@@ -17,7 +17,12 @@
 services:
   olcrtc-server:
     build:
-      context: "https://github.com/openlibrecommunity/olcrtc.git#master"
+      # The Docker infra (Dockerfile, entrypoint) lives ONLY in the
+      # alananisimov fork — canonical openlibrecommunity/olcrtc has no
+      # Dockerfile (it was removed upstream). This pins the fork commit that
+      # still ships it. NOTE: this commit is behind canonical; keep the mobile
+      # client pinned to the same commit for protocol compatibility.
+      context: "https://github.com/alananisimov/olcrtc.git#24ca5b354c3e7215c937d966c26b2526411e3043"
     image: olcrtc/server:local
     container_name: olcrtc-server
     restart: unless-stopped

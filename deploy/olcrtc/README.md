@@ -5,11 +5,19 @@ The exit side of the WebRTC side-channel. The mobile app runs the olcrtc
 it connects to. `carrier`, `transport`, `room`, and `key` must be identical on
 both sides.
 
-> **There is no official olcrtc image.** Verified 2026-07-05: nothing on Docker
-> Hub (`olcrtc/*`, `openlibrecommunity/*` → 404), no public GHCR package, and
-> the repo's CI has no image-push job. So the compose can't `image:`-pull one —
-> it builds from source. To avoid a local clone, it uses a **remote git build
-> context**, so Dokploy builds straight from GitHub.
+> **There is no official olcrtc image, and the canonical repo has no Dockerfile.**
+> Verified 2026-07-05: nothing on Docker Hub / GHCR, CI has no image-push job, and
+> `openlibrecommunity/olcrtc` (where the mobile client is pinned) removed its
+> Docker files upstream. The Docker infra survives only in the `alananisimov`
+> fork at commit `24ca5b3`, which this compose builds from via a remote git
+> context — Dokploy builds it straight from GitHub, no local clone.
+>
+> ⚠️ **Version skew:** that fork commit is ~207 commits behind the canonical
+> repo the mobile client links. For guaranteed protocol compatibility, pin the
+> mobile client's `go-core/go.mod` olcrtc dependency to the SAME commit
+> `24ca5b354c3e7215c937d966c26b2526411e3043` and rebuild. Verified locally: the
+> image builds (207 MB) and the server boots, generates a key, and reaches the
+> carrier.
 
 ## Run (Dokploy or plain compose)
 
