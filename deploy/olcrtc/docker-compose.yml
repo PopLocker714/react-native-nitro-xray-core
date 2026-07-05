@@ -23,14 +23,17 @@ services:
     restart: unless-stopped
     environment:
       OLCRTC_MODE: srv
-      # jitsi | telemost | wbstream. jitsi+datachannel is the fastest, most
-      # stable combo (fast.ru.md) — the default here.
-      OLCRTC_CARRIER: "${OLCRTC_CARRIER:-jitsi}"
-      # MUST equal the mobile client's transport. NOTE the native client
-      # defaults to vp8channel, so pass transport:'datachannel' in startOlcrtc.
-      OLCRTC_TRANSPORT: "${OLCRTC_TRANSPORT:-datachannel}"
-      # For jitsi, room = the FULL meeting URL (e.g. https://meet.jit.si/myroom).
-      OLCRTC_ROOM_ID: "${OLCRTC_ROOM_ID:?set OLCRTC_ROOM_ID (jitsi meeting URL) in .env}"
+      # wbstream | telemost | jitsi. wbstream is the working default: it allows
+      # anonymous guest access (verified) and is RF-whitelisted. jitsi is NOT
+      # usable — public meet.jit.si now requires a JWT and rejects the anonymous
+      # flow ("token required"); a self-hosted jitsi isn't whitelisted so it
+      # defeats the bypass.
+      OLCRTC_CARRIER: "${OLCRTC_CARRIER:-wbstream}"
+      # wbstream/telemost run on vp8channel (datachannel doesn't work on them).
+      # This is also the mobile client's native default.
+      OLCRTC_TRANSPORT: "${OLCRTC_TRANSPORT:-vp8channel}"
+      # For wbstream, room = the room ID created on https://stream.wb.ru.
+      OLCRTC_ROOM_ID: "${OLCRTC_ROOM_ID:?set OLCRTC_ROOM_ID (wbstream room from stream.wb.ru) in .env}"
       # Leave empty to auto-generate on first run (saved to the volume, logged).
       OLCRTC_KEY: "${OLCRTC_KEY:-}"
       OLCRTC_KEY_FILE: /var/lib/olcrtc/key.hex

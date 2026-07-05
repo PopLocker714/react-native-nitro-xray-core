@@ -52,12 +52,19 @@ Point Dokploy at this compose (or paste it). Set these in the service's
 Environment / `.env`:
 
 ```
-OLCRTC_IMAGE=<YOUR_DOCKERHUB_USER>/olcrtc:latest
+OLCRTC_IMAGE=jojo714/olcrtc:latest
 OLCRTC_CARRIER=wbstream
 OLCRTC_TRANSPORT=vp8channel
-OLCRTC_ROOM_ID=<room-id>
+OLCRTC_ROOM_ID=<room-id from https://stream.wb.ru>
 # OLCRTC_KEY left empty → auto-generated on first run, printed to logs
 ```
+
+> **Carrier reality (verified 2026-07-05):** `jitsi` does NOT work — public
+> `meet.jit.si` rejects the anonymous flow with `token required` (needs a JWT),
+> and a self-hosted jitsi isn't RF-whitelisted so it defeats the bypass.
+> **`wbstream` works** (anonymous guest token issued) and is whitelisted — use it
+> with `vp8channel`. `telemost` is the other whitelisted option (also vp8channel;
+> it removed datachannel).
 
 Dokploy pulls the image and runs it — no build step. Grab the generated key:
 
