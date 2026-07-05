@@ -92,9 +92,9 @@ function App(): React.JSX.Element {
 	const [olcrtcOn, setOlcrtcOn] = useState<boolean>(false);
 	const [olcrtcBusy, setOlcrtcBusy] = useState<boolean>(false);
 	const [olcrtcPort, setOlcrtcPort] = useState<number>(0);
-	// vp8channel fps — tunable; applies on the next olcrtc start. Higher may lift
-	// throughput at more CPU. Default 60 (experiment vs the recommended 30).
-	const [vp8Fps, setVp8Fps] = useState<number>(60);
+	// vp8channel fps — tunable; applies on the next olcrtc start. 30 is the
+	// recommended balance (higher = more CPU, no real throughput gain).
+	const [vp8Fps, setVp8Fps] = useState<number>(30);
 	// Live download rate (bytes/s) for comparing settings.
 	const [downRate, setDownRate] = useState<number>(0);
 	const prevDownRef = useRef<number>(0);
@@ -142,6 +142,16 @@ function App(): React.JSX.Element {
 			setKillSwitch(XrayClient.isKillSwitchEnabled());
 		} catch {
 			// not supported on this platform yet
+		}
+		// Configurable foreground-notification text (swap for translated strings).
+		try {
+			XrayClient.setNotificationConfig({
+				title: "Nitro VPN",
+				text: "Connected — protecting your traffic",
+				disconnectLabel: "Disconnect",
+			});
+		} catch {
+			// no-op on iOS
 		}
 		const unsubscribe = XrayClient.onState((s, message) => {
 			setState(s);

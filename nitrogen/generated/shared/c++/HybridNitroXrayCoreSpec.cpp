@@ -29,6 +29,7 @@ namespace margelo::nitro::nitroxraycore {
       prototype.registerHybridMethod("stopOlcrtc", &HybridNitroXrayCoreSpec::stopOlcrtc);
       prototype.registerHybridMethod("getOlcrtcSocksPort", &HybridNitroXrayCoreSpec::getOlcrtcSocksPort);
       prototype.registerHybridMethod("isOlcrtcRunning", &HybridNitroXrayCoreSpec::isOlcrtcRunning);
+      prototype.registerHybridMethod("setNotificationConfig", &HybridNitroXrayCoreSpec::setNotificationConfig);
     });
   }
 

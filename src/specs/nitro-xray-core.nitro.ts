@@ -23,6 +23,25 @@ export type XrayState =
   | 'disconnecting'
   | 'error'
 
+/**
+ * Text for the persistent foreground VPN notification (Android). All fields are
+ * optional so callers translate only what they need; unset fields keep the
+ * built-in English defaults. Apply via {@link NitroXrayCore.setNotificationConfig}
+ * before connecting (and again to switch language at runtime).
+ */
+export interface NotificationConfig {
+  /** Notification title. Default "VPN Active". */
+  title?: string
+  /** Body text shown while connected. Default "Protecting your connection". */
+  text?: string
+  /** Label of the Disconnect action button. Default "Disconnect". */
+  disconnectLabel?: string
+  /** Text shown when the kill switch is holding traffic. Default "Kill switch: traffic blocked". */
+  blockedText?: string
+  /** Android notification channel name. Default "VPN". */
+  channelName?: string
+}
+
 export interface NitroXrayCore extends HybridObject<{ ios: 'swift', android: 'kotlin' }> {
   hasVpnPermission(): Promise<boolean>
   requestVpnPermission(): Promise<void>
@@ -92,4 +111,12 @@ export interface NitroXrayCore extends HybridObject<{ ios: 'swift', android: 'ko
 
   /** Whether the olcrtc client is currently running. */
   isOlcrtcRunning(): boolean
+
+  /**
+   * Configure the persistent foreground VPN notification text/labels (Android).
+   * Persists across service/process restarts; call again to change language at
+   * runtime. The notification always carries a Disconnect action button.
+   * iOS: no-op (the system manages the VPN status UI).
+   */
+  setNotificationConfig(config: NotificationConfig): void
 }

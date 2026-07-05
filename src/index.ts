@@ -39,4 +39,8 @@ export type {
 export type { OlcrtcClientConfig } from './olcrtc/types'
 
 // Shared types from the native spec
-export type { TrafficStats, XrayState } from './specs/nitro-xray-core.nitro'
+export type {
+  TrafficStats,
+  XrayState,
+  NotificationConfig,
+} from './specs/nitro-xray-core.nitro'

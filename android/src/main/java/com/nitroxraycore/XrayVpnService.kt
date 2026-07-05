@@ -121,7 +121,7 @@ class XrayVpnService : VpnService() {
                     val result = XrayEngine.start(configJson, tunFd)
                     if (result == 0) {
                         isRunning = true
-                        updateNotification("Protecting your connection")
+                        updateNotification(NotificationConfigStore.text(this))
                         XrayStateBus.emit("connected")
                         XrayStateBus.resolveStart(true, null)
                     } else {
@@ -164,7 +164,7 @@ class XrayVpnService : VpnService() {
         val killSwitch = KillSwitchStore.get(this)
         if (killSwitch && vpnInterface != null) {
             Log.w(TAG, "$msg — kill switch active, holding TUN (blackhole)")
-            updateNotification("Kill switch: traffic blocked (engine down)")
+            updateNotification(NotificationConfigStore.blockedText(this))
             XrayStateBus.emit("error", "$msg (kill switch active: traffic blocked)")
             XrayStateBus.resolveStart(false, "$msg (kill switch active: traffic blocked)")
             // Service stays foreground, TUN stays established.
@@ -221,21 +221,36 @@ class XrayVpnService : VpnService() {
         Log.i(TAG, "VPN stopped")
     }
 
+    /** PendingIntent that stops the VPN — backs the notification's Disconnect button. */
+    private fun disconnectPendingIntent(): android.app.PendingIntent {
+        val intent = Intent(this, XrayVpnService::class.java).setAction(ACTION_STOP)
+        var flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags = flags or android.app.PendingIntent.FLAG_IMMUTABLE
+        }
+        return android.app.PendingIntent.getService(this, 0, intent, flags)
+    }
+
     private fun buildNotification(text: String): Notification {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val title = NotificationConfigStore.title(this)
+        val disconnectLabel = NotificationConfigStore.disconnectLabel(this)
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, CHANNEL_ID)
-                .setContentTitle("Xray VPN Active")
-                .setContentText(text)
-                .setSmallIcon(android.R.drawable.ic_lock_lock)
-                .build()
         } else {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
-                .setContentTitle("Xray VPN Active")
-                .setContentText(text)
-                .setSmallIcon(android.R.drawable.ic_lock_lock)
-                .build()
         }
+        return builder
+            .setContentTitle(title)
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setOngoing(true)
+            .addAction(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                disconnectLabel,
+                disconnectPendingIntent(),
+            )
+            .build()
     }
 
     /** Refresh the foreground notification text (e.g. held-blackhole state). */
@@ -252,14 +267,14 @@ class XrayVpnService : VpnService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Xray VPN",
+                NotificationConfigStore.channelName(this),
                 NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
 
-        val notification = buildNotification("Protecting your connection")
+        val notification = buildNotification(NotificationConfigStore.text(this))
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // Android 14
             ServiceCompat.startForeground(

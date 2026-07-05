@@ -14,11 +14,15 @@ namespace NitroXrayCore { class HybridNitroXrayCoreSpec_cxx; }
 
 // Forward declaration of `TrafficStats` to properly resolve imports.
 namespace margelo::nitro::nitroxraycore { struct TrafficStats; }
+// Forward declaration of `NotificationConfig` to properly resolve imports.
+namespace margelo::nitro::nitroxraycore { struct NotificationConfig; }
 
 #include <NitroModules/Promise.hpp>
 #include <string>
 #include "TrafficStats.hpp"
 #include <functional>
+#include "NotificationConfig.hpp"
+#include <optional>
 
 #include "NitroXrayCore-Swift-Cxx-Umbrella.hpp"
 
@@ -187,6 +191,12 @@ namespace margelo::nitro::nitroxraycore {
       }
       auto __value = std::move(__result.value());
       return __value;
+    }
+    inline void setNotificationConfig(const NotificationConfig& config) override {
+      auto __result = _swiftPart.setNotificationConfig(std::forward<decltype(config)>(config));
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
     }
 
   private:

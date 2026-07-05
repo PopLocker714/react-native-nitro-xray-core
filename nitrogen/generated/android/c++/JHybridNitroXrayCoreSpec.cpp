@@ -9,6 +9,8 @@
 
 // Forward declaration of `TrafficStats` to properly resolve imports.
 namespace margelo::nitro::nitroxraycore { struct TrafficStats; }
+// Forward declaration of `NotificationConfig` to properly resolve imports.
+namespace margelo::nitro::nitroxraycore { struct NotificationConfig; }
 
 #include <NitroModules/Promise.hpp>
 #include <NitroModules/JPromise.hpp>
@@ -19,6 +21,9 @@ namespace margelo::nitro::nitroxraycore { struct TrafficStats; }
 #include <functional>
 #include "JFunc_void_std__string_std__string.hpp"
 #include <NitroModules/JNICallable.hpp>
+#include "NotificationConfig.hpp"
+#include "JNotificationConfig.hpp"
+#include <optional>
 
 namespace margelo::nitro::nitroxraycore {
 
@@ -219,6 +224,10 @@ namespace margelo::nitro::nitroxraycore {
     static const auto method = _javaPart->javaClassStatic()->getMethod<jboolean()>("isOlcrtcRunning");
     auto __result = method(_javaPart);
     return static_cast<bool>(__result);
+  }
+  void JHybridNitroXrayCoreSpec::setNotificationConfig(const NotificationConfig& config) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void(jni::alias_ref<JNotificationConfig> /* config */)>("setNotificationConfig");
+    method(_javaPart, JNotificationConfig::fromCpp(config));
   }
 
 } // namespace margelo::nitro::nitroxraycore

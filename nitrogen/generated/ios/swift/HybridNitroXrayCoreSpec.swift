@@ -28,6 +28,7 @@ public protocol HybridNitroXrayCoreSpec_protocol: HybridObject {
   func stopOlcrtc() throws -> Promise<Void>
   func getOlcrtcSocksPort() throws -> Double
   func isOlcrtcRunning() throws -> Bool
+  func setNotificationConfig(config: NotificationConfig) throws -> Void
 }
 
 public extension HybridNitroXrayCoreSpec_protocol {

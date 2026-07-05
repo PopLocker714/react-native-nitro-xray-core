@@ -8,7 +8,7 @@ import {
   parseSubscriptionUserInfo,
 } from './subscription/parse'
 import type { ParsedServer, SubscriptionInfo } from './subscription/types'
-import type { TrafficStats } from './specs/nitro-xray-core.nitro'
+import type { TrafficStats, NotificationConfig } from './specs/nitro-xray-core.nitro'
 import { urlTest } from './urltest/urltest'
 import type { UrlTestOptions, UrlTestResult } from './urltest/urltest'
 import type { OlcrtcClientConfig } from './olcrtc/types'
@@ -284,6 +284,16 @@ export const XrayClient = {
   /** Whether the olcrtc client is currently running. */
   isOlcrtcRunning(): boolean {
     return NitroXrayCore.isOlcrtcRunning()
+  },
+
+  /**
+   * Configure the persistent foreground VPN notification (Android): title,
+   * body, Disconnect button label, kill-switch text, channel name. All fields
+   * optional — set only what you translate; unset keeps the English default.
+   * Call before connecting, and again to switch language at runtime. iOS: no-op.
+   */
+  setNotificationConfig(config: NotificationConfig): void {
+    NitroXrayCore.setNotificationConfig(config)
   },
 
   /** Ensure the app has VPN permission, requesting it if needed. */

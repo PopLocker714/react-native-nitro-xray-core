@@ -15,11 +15,14 @@
 
 // Forward declaration of `TrafficStats` to properly resolve imports.
 namespace margelo::nitro::nitroxraycore { struct TrafficStats; }
+// Forward declaration of `NotificationConfig` to properly resolve imports.
+namespace margelo::nitro::nitroxraycore { struct NotificationConfig; }
 
 #include <NitroModules/Promise.hpp>
 #include <string>
 #include "TrafficStats.hpp"
 #include <functional>
+#include "NotificationConfig.hpp"
 
 namespace margelo::nitro::nitroxraycore {
 
@@ -67,6 +70,7 @@ namespace margelo::nitro::nitroxraycore {
       virtual std::shared_ptr<Promise<void>> stopOlcrtc() = 0;
       virtual double getOlcrtcSocksPort() = 0;
       virtual bool isOlcrtcRunning() = 0;
+      virtual void setNotificationConfig(const NotificationConfig& config) = 0;
 
     protected:
       // Hybrid Setup

@@ -10,17 +10,21 @@
 // Forward declarations of C++ defined types
 // Forward declaration of `HybridNitroXrayCoreSpec` to properly resolve imports.
 namespace margelo::nitro::nitroxraycore { class HybridNitroXrayCoreSpec; }
+// Forward declaration of `NotificationConfig` to properly resolve imports.
+namespace margelo::nitro::nitroxraycore { struct NotificationConfig; }
 // Forward declaration of `TrafficStats` to properly resolve imports.
 namespace margelo::nitro::nitroxraycore { struct TrafficStats; }
 
 // Include C++ defined types
 #include "HybridNitroXrayCoreSpec.hpp"
+#include "NotificationConfig.hpp"
 #include "TrafficStats.hpp"
 #include <NitroModules/Promise.hpp>
 #include <NitroModules/Result.hpp>
 #include <exception>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 
 // C++ helpers for Swift

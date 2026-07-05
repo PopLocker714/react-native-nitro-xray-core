@@ -69,6 +69,7 @@ namespace margelo::nitro::nitroxraycore {
     std::shared_ptr<Promise<void>> stopOlcrtc() override;
     double getOlcrtcSocksPort() override;
     bool isOlcrtcRunning() override;
+    void setNotificationConfig(const NotificationConfig& config) override;
 
   private:
     jni::global_ref<JHybridNitroXrayCoreSpec::JavaPart> _javaPart;

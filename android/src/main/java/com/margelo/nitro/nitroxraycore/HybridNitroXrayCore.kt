@@ -224,4 +224,16 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
             false
         }
     }
+
+    override fun setNotificationConfig(config: NotificationConfig) {
+        val context = NitroModules.applicationContext ?: return
+        com.nitroxraycore.NotificationConfigStore.set(
+            context,
+            config.title,
+            config.text,
+            config.disconnectLabel,
+            config.blockedText,
+            config.channelName,
+        )
+    }
 }

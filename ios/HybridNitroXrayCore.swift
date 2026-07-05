@@ -191,6 +191,11 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         return false
     }
 
+    // iOS: the system owns the VPN status UI; notification text isn't applicable.
+    func setNotificationConfig(config: NotificationConfig) throws {
+        // no-op
+    }
+
     // MARK: - Private helpers
 
     private func loadOrCreateManager(completion: @escaping (Result<NETunnelProviderManager, Error>) -> Void) {
