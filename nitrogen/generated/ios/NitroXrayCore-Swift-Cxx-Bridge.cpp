@@ -38,6 +38,22 @@ namespace margelo::nitro::nitroxraycore::bridge::swift {
     };
   }
   
+  // pragma MARK: std::function<void(const TrafficStats& /* result */)>
+  Func_void_TrafficStats create_Func_void_TrafficStats(void* NON_NULL swiftClosureWrapper) noexcept {
+    auto swiftClosure = NitroXrayCore::Func_void_TrafficStats::fromUnsafe(swiftClosureWrapper);
+    return [swiftClosure = std::move(swiftClosure)](const TrafficStats& result) mutable -> void {
+      swiftClosure.call(result);
+    };
+  }
+  
+  // pragma MARK: std::function<void(const std::string& /* state */, const std::string& /* message */)>
+  Func_void_std__string_std__string create_Func_void_std__string_std__string(void* NON_NULL swiftClosureWrapper) noexcept {
+    auto swiftClosure = NitroXrayCore::Func_void_std__string_std__string::fromUnsafe(swiftClosureWrapper);
+    return [swiftClosure = std::move(swiftClosure)](const std::string& state, const std::string& message) mutable -> void {
+      swiftClosure.call(state, message);
+    };
+  }
+  
   // pragma MARK: std::shared_ptr<HybridNitroXrayCoreSpec>
   std::shared_ptr<HybridNitroXrayCoreSpec> create_std__shared_ptr_HybridNitroXrayCoreSpec_(void* NON_NULL swiftUnsafePointer) noexcept {
     NitroXrayCore::HybridNitroXrayCoreSpec_cxx swiftPart = NitroXrayCore::HybridNitroXrayCoreSpec_cxx::fromUnsafe(swiftUnsafePointer);

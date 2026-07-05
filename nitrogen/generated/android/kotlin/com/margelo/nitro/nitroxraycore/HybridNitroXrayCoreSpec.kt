@@ -47,11 +47,52 @@ abstract class HybridNitroXrayCoreSpec: HybridObject() {
   
   @DoNotStrip
   @Keep
+  abstract fun getVersion(): String
+  
+  @DoNotStrip
+  @Keep
   abstract fun startXray(configJson: String): Promise<Unit>
   
   @DoNotStrip
   @Keep
   abstract fun stopXray(): Promise<Unit>
+  
+  @DoNotStrip
+  @Keep
+  abstract fun setKillSwitch(enabled: Boolean): Promise<Unit>
+  
+  @DoNotStrip
+  @Keep
+  abstract fun isKillSwitchEnabled(): Boolean
+  
+  @DoNotStrip
+  @Keep
+  abstract fun getStats(outboundTag: String): Promise<TrafficStats>
+  
+  abstract fun onStateChange(callback: (state: String, message: String) -> Unit): Unit
+  
+  @DoNotStrip
+  @Keep
+  private fun onStateChange_cxx(callback: Func_void_std__string_std__string): Unit {
+    val __result = onStateChange(callback)
+    return __result
+  }
+  
+  @DoNotStrip
+  @Keep
+  abstract fun startOlcrtc(configJson: String): Promise<Unit>
+  
+  @DoNotStrip
+  @Keep
+  abstract fun stopOlcrtc(): Promise<Unit>
+  
+  @DoNotStrip
+  @Keep
+  abstract fun getOlcrtcSocksPort(): Double
+  
+  @DoNotStrip
+  @Keep
+  abstract fun isOlcrtcRunning(): Boolean
 
   // Default implementation of `HybridObject.toString()`
   override fun toString(): String {

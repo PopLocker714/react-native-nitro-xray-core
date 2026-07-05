@@ -16,6 +16,7 @@
 #include <NitroModules/HybridObjectRegistry.hpp>
 
 #include "JHybridNitroXrayCoreSpec.hpp"
+#include "JFunc_void_std__string_std__string.hpp"
 #include <NitroModules/DefaultConstructableObject.hpp>
 
 namespace margelo::nitro::nitroxraycore {
@@ -27,7 +28,7 @@ int initialize(JavaVM* vm) {
 }
 
 struct JHybridNitroXrayCoreSpecImpl: public jni::JavaClass<JHybridNitroXrayCoreSpecImpl, JHybridNitroXrayCoreSpec::JavaPart> {
-  static constexpr auto kJavaDescriptor = "Lcom/nitroxraycore/HybridNitroXrayCore;";
+  static constexpr auto kJavaDescriptor = "Lcom/margelo/nitro/nitroxraycore/HybridNitroXrayCore;";
   static std::shared_ptr<JHybridNitroXrayCoreSpec> create() {
     static const auto constructorFn = javaClassStatic()->getConstructor<JHybridNitroXrayCoreSpecImpl::javaobject()>();
     jni::local_ref<JHybridNitroXrayCoreSpec::JavaPart> javaPart = javaClassStatic()->newObject(constructorFn);
@@ -41,6 +42,7 @@ void registerAllNatives() {
 
   // Register native JNI methods
   margelo::nitro::nitroxraycore::JHybridNitroXrayCoreSpec::CxxPart::registerNatives();
+  margelo::nitro::nitroxraycore::JFunc_void_std__string_std__string_cxx::registerNatives();
 
   // Register Nitro Hybrid Objects
   HybridObjectRegistry::registerHybridObjectConstructor(

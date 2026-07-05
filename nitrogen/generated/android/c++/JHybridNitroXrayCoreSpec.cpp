@@ -7,12 +7,18 @@
 
 #include "JHybridNitroXrayCoreSpec.hpp"
 
-
+// Forward declaration of `TrafficStats` to properly resolve imports.
+namespace margelo::nitro::nitroxraycore { struct TrafficStats; }
 
 #include <NitroModules/Promise.hpp>
 #include <NitroModules/JPromise.hpp>
 #include <NitroModules/JUnit.hpp>
 #include <string>
+#include "TrafficStats.hpp"
+#include "JTrafficStats.hpp"
+#include <functional>
+#include "JFunc_void_std__string_std__string.hpp"
+#include <NitroModules/JNICallable.hpp>
 
 namespace margelo::nitro::nitroxraycore {
 
@@ -99,6 +105,11 @@ namespace margelo::nitro::nitroxraycore {
     auto __result = method(_javaPart);
     return static_cast<bool>(__result);
   }
+  std::string JHybridNitroXrayCoreSpec::getVersion() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<jni::JString>()>("getVersion");
+    auto __result = method(_javaPart);
+    return __result->toStdString();
+  }
   std::shared_ptr<Promise<void>> JHybridNitroXrayCoreSpec::startXray(const std::string& configJson) {
     static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPromise::javaobject>(jni::alias_ref<jni::JString> /* configJson */)>("startXray");
     auto __result = method(_javaPart, jni::make_jstring(configJson));
@@ -128,6 +139,86 @@ namespace margelo::nitro::nitroxraycore {
       });
       return __promise;
     }();
+  }
+  std::shared_ptr<Promise<void>> JHybridNitroXrayCoreSpec::setKillSwitch(bool enabled) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPromise::javaobject>(jboolean /* enabled */)>("setKillSwitch");
+    auto __result = method(_javaPart, enabled);
+    return [&]() {
+      auto __promise = Promise<void>::create();
+      __result->cthis()->addOnResolvedListener([=](const jni::alias_ref<jni::JObject>& /* unit */) {
+        __promise->resolve();
+      });
+      __result->cthis()->addOnRejectedListener([=](const jni::alias_ref<jni::JThrowable>& __throwable) {
+        jni::JniException __jniError(__throwable);
+        __promise->reject(std::make_exception_ptr(__jniError));
+      });
+      return __promise;
+    }();
+  }
+  bool JHybridNitroXrayCoreSpec::isKillSwitchEnabled() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jboolean()>("isKillSwitchEnabled");
+    auto __result = method(_javaPart);
+    return static_cast<bool>(__result);
+  }
+  std::shared_ptr<Promise<TrafficStats>> JHybridNitroXrayCoreSpec::getStats(const std::string& outboundTag) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPromise::javaobject>(jni::alias_ref<jni::JString> /* outboundTag */)>("getStats");
+    auto __result = method(_javaPart, jni::make_jstring(outboundTag));
+    return [&]() {
+      auto __promise = Promise<TrafficStats>::create();
+      __result->cthis()->addOnResolvedListener([=](const jni::alias_ref<jni::JObject>& __boxedResult) {
+        auto __result = jni::static_ref_cast<JTrafficStats>(__boxedResult);
+        __promise->resolve(__result->toCpp());
+      });
+      __result->cthis()->addOnRejectedListener([=](const jni::alias_ref<jni::JThrowable>& __throwable) {
+        jni::JniException __jniError(__throwable);
+        __promise->reject(std::make_exception_ptr(__jniError));
+      });
+      return __promise;
+    }();
+  }
+  void JHybridNitroXrayCoreSpec::onStateChange(const std::function<void(const std::string& /* state */, const std::string& /* message */)>& callback) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void(jni::alias_ref<JFunc_void_std__string_std__string::javaobject> /* callback */)>("onStateChange_cxx");
+    method(_javaPart, JFunc_void_std__string_std__string_cxx::fromCpp(callback));
+  }
+  std::shared_ptr<Promise<void>> JHybridNitroXrayCoreSpec::startOlcrtc(const std::string& configJson) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPromise::javaobject>(jni::alias_ref<jni::JString> /* configJson */)>("startOlcrtc");
+    auto __result = method(_javaPart, jni::make_jstring(configJson));
+    return [&]() {
+      auto __promise = Promise<void>::create();
+      __result->cthis()->addOnResolvedListener([=](const jni::alias_ref<jni::JObject>& /* unit */) {
+        __promise->resolve();
+      });
+      __result->cthis()->addOnRejectedListener([=](const jni::alias_ref<jni::JThrowable>& __throwable) {
+        jni::JniException __jniError(__throwable);
+        __promise->reject(std::make_exception_ptr(__jniError));
+      });
+      return __promise;
+    }();
+  }
+  std::shared_ptr<Promise<void>> JHybridNitroXrayCoreSpec::stopOlcrtc() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPromise::javaobject>()>("stopOlcrtc");
+    auto __result = method(_javaPart);
+    return [&]() {
+      auto __promise = Promise<void>::create();
+      __result->cthis()->addOnResolvedListener([=](const jni::alias_ref<jni::JObject>& /* unit */) {
+        __promise->resolve();
+      });
+      __result->cthis()->addOnRejectedListener([=](const jni::alias_ref<jni::JThrowable>& __throwable) {
+        jni::JniException __jniError(__throwable);
+        __promise->reject(std::make_exception_ptr(__jniError));
+      });
+      return __promise;
+    }();
+  }
+  double JHybridNitroXrayCoreSpec::getOlcrtcSocksPort() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<double()>("getOlcrtcSocksPort");
+    auto __result = method(_javaPart);
+    return __result;
+  }
+  bool JHybridNitroXrayCoreSpec::isOlcrtcRunning() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jboolean()>("isOlcrtcRunning");
+    auto __result = method(_javaPart);
+    return static_cast<bool>(__result);
   }
 
 } // namespace margelo::nitro::nitroxraycore

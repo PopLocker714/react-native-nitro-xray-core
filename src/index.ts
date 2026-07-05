@@ -1,5 +1,38 @@
-import { NitroModules } from 'react-native-nitro-modules'
-import type { NitroXrayCore as NitroXrayCoreSpec } from './specs/nitro-xray-core.nitro'
+// Native engine + state multiplexer
+export { NitroXrayCore, addStateListener } from './native'
+export type { StateListener } from './native'
 
-export const NitroXrayCore =
-  NitroModules.createHybridObject<NitroXrayCoreSpec>('NitroXrayCore')
+// High-level client (recommended entry point)
+export { XrayClient } from './client'
+export type { ConnectOptions, SubscriptionResult } from './client'
+
+// Subscription parsing
+export {
+  parseShareLink,
+  parseSubscription,
+  parseSubscriptionUserInfo,
+} from './subscription/parse'
+export type {
+  ParsedServer,
+  ProxyProtocol,
+  Network,
+  Security,
+  SubscriptionInfo,
+} from './subscription/types'
+
+// Session-continuous traffic accounting (pure logic)
+export { TrafficSession } from './stats/session'
+
+// URLTest — latency probing / server sorting (pure TS)
+export { urlTest } from './urltest/urltest'
+export type { UrlTestOptions, UrlTestResult } from './urltest/urltest'
+
+// Config building
+export { buildXrayConfig } from './config/build'
+export type { BuildConfigOptions, OlcrtcChainOptions } from './config/build'
+
+// olcrtc client (WebRTC side-channel "Russia bypass")
+export type { OlcrtcClientConfig } from './olcrtc/types'
+
+// Shared types from the native spec
+export type { TrafficStats, XrayState } from './specs/nitro-xray-core.nitro'

@@ -1,0 +1,44 @@
+# olcrtc SERVER — the exit side of the WebRTC side-channel.
+#
+# The mobile app runs the olcrtc CLIENT natively (XrayClient.startOlcrtc);
+# this container is the SERVER it pairs with. carrier + transport + room + key
+# MUST match on both sides (see manual.md: "должны совпадать с сервером").
+#
+# olcrtc has no published image — this builds from source. Put a clone of
+# https://github.com/openlibrecommunity/olcrtc next to this file (./olcrtc),
+# then: docker compose up -d --build
+#
+# First `srv` run auto-generates the 64-hex encryption key, persists it to the
+# volume, and prints `OLCRTC_KEY=...` to the logs. Copy that key into the
+# mobile client config (OlcrtcClientConfig.keyHex).
+
+services:
+  olcrtc-server:
+    build:
+      context: ./olcrtc
+    image: olcrtc/server:local
+    container_name: olcrtc-server
+    restart: unless-stopped
+    environment:
+      OLCRTC_MODE: srv
+      # jitsi | telemost | wbstream — whitelisted carrier both sides paras on.
+      OLCRTC_CARRIER: "${OLCRTC_CARRIER:?set OLCRTC_CARRIER in .env}"
+      # MUST equal the mobile client's transport. The native client defaults to
+      # vp8channel, so this defaults to vp8channel too. Change both together.
+      OLCRTC_TRANSPORT: "${OLCRTC_TRANSPORT:-vp8channel}"
+      # Room the client and server both join on the carrier (create it on the
+      # carrier's site; for wbstream use its room ID, for jitsi a meeting URL).
+      OLCRTC_ROOM_ID: "${OLCRTC_ROOM_ID:?set OLCRTC_ROOM_ID in .env}"
+      # Leave OLCRTC_KEY empty to auto-generate on first run (saved to the
+      # volume, printed to logs). Set it explicitly to reuse an existing key.
+      OLCRTC_KEY: "${OLCRTC_KEY:-}"
+      OLCRTC_KEY_FILE: /var/lib/olcrtc/key.hex
+      OLCRTC_DNS: "${OLCRTC_DNS:-8.8.8.8:53}"
+      OLCRTC_DEBUG: "${OLCRTC_DEBUG:-false}"
+    volumes:
+      # Persists the generated key across restarts.
+      - olcrtc-state:/var/lib/olcrtc
+    init: true
+
+volumes:
+  olcrtc-state:

@@ -10,6 +10,8 @@
 // Forward declarations of C++ defined types
 // Forward declaration of `HybridNitroXrayCoreSpec` to properly resolve imports.
 namespace margelo::nitro::nitroxraycore { class HybridNitroXrayCoreSpec; }
+// Forward declaration of `TrafficStats` to properly resolve imports.
+namespace margelo::nitro::nitroxraycore { struct TrafficStats; }
 
 // Forward declarations of Swift defined types
 // Forward declaration of `HybridNitroXrayCoreSpec_cxx` to properly resolve imports.
@@ -17,12 +19,14 @@ namespace NitroXrayCore { class HybridNitroXrayCoreSpec_cxx; }
 
 // Include C++ defined types
 #include "HybridNitroXrayCoreSpec.hpp"
+#include "TrafficStats.hpp"
 #include <NitroModules/Promise.hpp>
 #include <NitroModules/PromiseHolder.hpp>
 #include <NitroModules/Result.hpp>
 #include <exception>
 #include <functional>
 #include <memory>
+#include <string>
 
 /**
  * Contains specialized versions of C++ templated types so they can be accessed from Swift,
@@ -120,6 +124,62 @@ namespace margelo::nitro::nitroxraycore::bridge::swift {
     return Func_void_Wrapper(std::move(value));
   }
   
+  // pragma MARK: std::shared_ptr<Promise<TrafficStats>>
+  /**
+   * Specialized version of `std::shared_ptr<Promise<TrafficStats>>`.
+   */
+  using std__shared_ptr_Promise_TrafficStats__ = std::shared_ptr<Promise<TrafficStats>>;
+  inline std::shared_ptr<Promise<TrafficStats>> create_std__shared_ptr_Promise_TrafficStats__() noexcept {
+    return Promise<TrafficStats>::create();
+  }
+  inline PromiseHolder<TrafficStats> wrap_std__shared_ptr_Promise_TrafficStats__(std::shared_ptr<Promise<TrafficStats>> promise) noexcept {
+    return PromiseHolder<TrafficStats>(std::move(promise));
+  }
+  
+  // pragma MARK: std::function<void(const TrafficStats& /* result */)>
+  /**
+   * Specialized version of `std::function<void(const TrafficStats&)>`.
+   */
+  using Func_void_TrafficStats = std::function<void(const TrafficStats& /* result */)>;
+  /**
+   * Wrapper class for a `std::function<void(const TrafficStats& / * result * /)>`, this can be used from Swift.
+   */
+  class Func_void_TrafficStats_Wrapper final {
+  public:
+    explicit Func_void_TrafficStats_Wrapper(std::function<void(const TrafficStats& /* result */)>&& func): _function(std::make_unique<std::function<void(const TrafficStats& /* result */)>>(std::move(func))) {}
+    inline void call(TrafficStats result) const noexcept {
+      _function->operator()(result);
+    }
+  private:
+    std::unique_ptr<std::function<void(const TrafficStats& /* result */)>> _function;
+  } SWIFT_NONCOPYABLE;
+  Func_void_TrafficStats create_Func_void_TrafficStats(void* NON_NULL swiftClosureWrapper) noexcept;
+  inline Func_void_TrafficStats_Wrapper wrap_Func_void_TrafficStats(Func_void_TrafficStats value) noexcept {
+    return Func_void_TrafficStats_Wrapper(std::move(value));
+  }
+  
+  // pragma MARK: std::function<void(const std::string& /* state */, const std::string& /* message */)>
+  /**
+   * Specialized version of `std::function<void(const std::string&, const std::string&)>`.
+   */
+  using Func_void_std__string_std__string = std::function<void(const std::string& /* state */, const std::string& /* message */)>;
+  /**
+   * Wrapper class for a `std::function<void(const std::string& / * state * /, const std::string& / * message * /)>`, this can be used from Swift.
+   */
+  class Func_void_std__string_std__string_Wrapper final {
+  public:
+    explicit Func_void_std__string_std__string_Wrapper(std::function<void(const std::string& /* state */, const std::string& /* message */)>&& func): _function(std::make_unique<std::function<void(const std::string& /* state */, const std::string& /* message */)>>(std::move(func))) {}
+    inline void call(std::string state, std::string message) const noexcept {
+      _function->operator()(state, message);
+    }
+  private:
+    std::unique_ptr<std::function<void(const std::string& /* state */, const std::string& /* message */)>> _function;
+  } SWIFT_NONCOPYABLE;
+  Func_void_std__string_std__string create_Func_void_std__string_std__string(void* NON_NULL swiftClosureWrapper) noexcept;
+  inline Func_void_std__string_std__string_Wrapper wrap_Func_void_std__string_std__string(Func_void_std__string_std__string value) noexcept {
+    return Func_void_std__string_std__string_Wrapper(std::move(value));
+  }
+  
   // pragma MARK: std::shared_ptr<HybridNitroXrayCoreSpec>
   /**
    * Specialized version of `std::shared_ptr<HybridNitroXrayCoreSpec>`.
@@ -157,6 +217,42 @@ namespace margelo::nitro::nitroxraycore::bridge::swift {
   }
   inline Result_bool_ create_Result_bool_(const std::exception_ptr& error) noexcept {
     return Result<bool>::withError(error);
+  }
+  
+  // pragma MARK: Result<std::string>
+  using Result_std__string_ = Result<std::string>;
+  inline Result_std__string_ create_Result_std__string_(const std::string& value) noexcept {
+    return Result<std::string>::withValue(value);
+  }
+  inline Result_std__string_ create_Result_std__string_(const std::exception_ptr& error) noexcept {
+    return Result<std::string>::withError(error);
+  }
+  
+  // pragma MARK: Result<std::shared_ptr<Promise<TrafficStats>>>
+  using Result_std__shared_ptr_Promise_TrafficStats___ = Result<std::shared_ptr<Promise<TrafficStats>>>;
+  inline Result_std__shared_ptr_Promise_TrafficStats___ create_Result_std__shared_ptr_Promise_TrafficStats___(const std::shared_ptr<Promise<TrafficStats>>& value) noexcept {
+    return Result<std::shared_ptr<Promise<TrafficStats>>>::withValue(value);
+  }
+  inline Result_std__shared_ptr_Promise_TrafficStats___ create_Result_std__shared_ptr_Promise_TrafficStats___(const std::exception_ptr& error) noexcept {
+    return Result<std::shared_ptr<Promise<TrafficStats>>>::withError(error);
+  }
+  
+  // pragma MARK: Result<void>
+  using Result_void_ = Result<void>;
+  inline Result_void_ create_Result_void_() noexcept {
+    return Result<void>::withValue();
+  }
+  inline Result_void_ create_Result_void_(const std::exception_ptr& error) noexcept {
+    return Result<void>::withError(error);
+  }
+  
+  // pragma MARK: Result<double>
+  using Result_double_ = Result<double>;
+  inline Result_double_ create_Result_double_(double value) noexcept {
+    return Result<double>::withValue(std::move(value));
+  }
+  inline Result_double_ create_Result_double_(const std::exception_ptr& error) noexcept {
+    return Result<double>::withError(error);
   }
 
 } // namespace margelo::nitro::nitroxraycore::bridge::swift

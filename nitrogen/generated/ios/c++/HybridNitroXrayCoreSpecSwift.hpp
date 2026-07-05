@@ -12,10 +12,13 @@
 // Forward declaration of `HybridNitroXrayCoreSpec_cxx` to properly resolve imports.
 namespace NitroXrayCore { class HybridNitroXrayCoreSpec_cxx; }
 
-
+// Forward declaration of `TrafficStats` to properly resolve imports.
+namespace margelo::nitro::nitroxraycore { struct TrafficStats; }
 
 #include <NitroModules/Promise.hpp>
 #include <string>
+#include "TrafficStats.hpp"
+#include <functional>
 
 #include "NitroXrayCore-Swift-Cxx-Umbrella.hpp"
 
@@ -99,6 +102,14 @@ namespace margelo::nitro::nitroxraycore {
       auto __value = std::move(__result.value());
       return __value;
     }
+    inline std::string getVersion() override {
+      auto __result = _swiftPart.getVersion();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
     inline std::shared_ptr<Promise<void>> startXray(const std::string& configJson) override {
       auto __result = _swiftPart.startXray(configJson);
       if (__result.hasError()) [[unlikely]] {
@@ -109,6 +120,68 @@ namespace margelo::nitro::nitroxraycore {
     }
     inline std::shared_ptr<Promise<void>> stopXray() override {
       auto __result = _swiftPart.stopXray();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
+    inline std::shared_ptr<Promise<void>> setKillSwitch(bool enabled) override {
+      auto __result = _swiftPart.setKillSwitch(std::forward<decltype(enabled)>(enabled));
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
+    inline bool isKillSwitchEnabled() override {
+      auto __result = _swiftPart.isKillSwitchEnabled();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
+    inline std::shared_ptr<Promise<TrafficStats>> getStats(const std::string& outboundTag) override {
+      auto __result = _swiftPart.getStats(outboundTag);
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
+    inline void onStateChange(const std::function<void(const std::string& /* state */, const std::string& /* message */)>& callback) override {
+      auto __result = _swiftPart.onStateChange(callback);
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+    }
+    inline std::shared_ptr<Promise<void>> startOlcrtc(const std::string& configJson) override {
+      auto __result = _swiftPart.startOlcrtc(configJson);
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
+    inline std::shared_ptr<Promise<void>> stopOlcrtc() override {
+      auto __result = _swiftPart.stopOlcrtc();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
+    inline double getOlcrtcSocksPort() override {
+      auto __result = _swiftPart.getOlcrtcSocksPort();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
+    inline bool isOlcrtcRunning() override {
+      auto __result = _swiftPart.isOlcrtcRunning();
       if (__result.hasError()) [[unlikely]] {
         std::rethrow_exception(__result.error());
       }

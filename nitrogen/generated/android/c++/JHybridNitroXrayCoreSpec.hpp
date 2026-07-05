@@ -58,8 +58,17 @@ namespace margelo::nitro::nitroxraycore {
     std::shared_ptr<Promise<void>> requestVpnPermission() override;
     std::shared_ptr<Promise<bool>> requestNotificationPermission() override;
     bool isVpnConnected() override;
+    std::string getVersion() override;
     std::shared_ptr<Promise<void>> startXray(const std::string& configJson) override;
     std::shared_ptr<Promise<void>> stopXray() override;
+    std::shared_ptr<Promise<void>> setKillSwitch(bool enabled) override;
+    bool isKillSwitchEnabled() override;
+    std::shared_ptr<Promise<TrafficStats>> getStats(const std::string& outboundTag) override;
+    void onStateChange(const std::function<void(const std::string& /* state */, const std::string& /* message */)>& callback) override;
+    std::shared_ptr<Promise<void>> startOlcrtc(const std::string& configJson) override;
+    std::shared_ptr<Promise<void>> stopOlcrtc() override;
+    double getOlcrtcSocksPort() override;
+    bool isOlcrtcRunning() override;
 
   private:
     jni::global_ref<JHybridNitroXrayCoreSpec::JavaPart> _javaPart;

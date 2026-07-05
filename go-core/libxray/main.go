@@ -27,10 +27,12 @@ import (
 	"unsafe"
 
 	"github.com/xtls/xray-core/core"
+	"github.com/xtls/xray-core/features/stats"
+
 	_ "github.com/xtls/xray-core/main/distro/all"
 )
 
-var runningServer core.Server
+var runningServer *core.Instance
 
 func logInfo(msg string) {
 	cmsg := C.CString(msg)
@@ -100,6 +102,58 @@ func StopXray() C.int {
 		logInfo("Xray: Server stopped")
 	}
 	return 0
+}
+
+// GetVersion returns the Xray-core version string.
+//
+//export GetVersion
+func GetVersion() *C.char {
+	return C.CString(core.Version())
+}
+
+// QueryStats returns cumulative uplink/downlink byte counters for the given
+// outbound tag as a JSON string: {"uplink":<int64>,"downlink":<int64>}.
+// Returns zeros if the server is not running or stats are not enabled in the
+// config. The caller must free the returned string with FreeString.
+//
+//export QueryStats
+func QueryStats(outboundTag *C.char) *C.char {
+	up, down := queryOutboundTraffic(C.GoString(outboundTag))
+	return C.CString(fmt.Sprintf(`{"uplink":%d,"downlink":%d}`, up, down))
+}
+
+func queryOutboundTraffic(tag string) (int64, int64) {
+	if runningServer == nil || tag == "" {
+		return 0, 0
+	}
+
+	feature := runningServer.GetFeature(stats.ManagerType())
+	if feature == nil {
+		return 0, 0
+	}
+	manager, ok := feature.(stats.Manager)
+	if !ok {
+		return 0, 0
+	}
+
+	return counterValue(manager, "outbound>>>"+tag+">>>traffic>>>uplink"),
+		counterValue(manager, "outbound>>>"+tag+">>>traffic>>>downlink")
+}
+
+func counterValue(m stats.Manager, name string) int64 {
+	c := m.GetCounter(name)
+	if c == nil {
+		return 0
+	}
+	return c.Value()
+}
+
+// FreeString frees a C string allocated by Go. Call from native code after
+// consuming a *C.char returned by GetVersion or QueryStats.
+//
+//export FreeString
+func FreeString(s *C.char) {
+	C.free(unsafe.Pointer(s))
 }
 
 func main() {}

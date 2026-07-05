@@ -18,8 +18,17 @@ namespace margelo::nitro::nitroxraycore {
       prototype.registerHybridMethod("requestVpnPermission", &HybridNitroXrayCoreSpec::requestVpnPermission);
       prototype.registerHybridMethod("requestNotificationPermission", &HybridNitroXrayCoreSpec::requestNotificationPermission);
       prototype.registerHybridMethod("isVpnConnected", &HybridNitroXrayCoreSpec::isVpnConnected);
+      prototype.registerHybridMethod("getVersion", &HybridNitroXrayCoreSpec::getVersion);
       prototype.registerHybridMethod("startXray", &HybridNitroXrayCoreSpec::startXray);
       prototype.registerHybridMethod("stopXray", &HybridNitroXrayCoreSpec::stopXray);
+      prototype.registerHybridMethod("setKillSwitch", &HybridNitroXrayCoreSpec::setKillSwitch);
+      prototype.registerHybridMethod("isKillSwitchEnabled", &HybridNitroXrayCoreSpec::isKillSwitchEnabled);
+      prototype.registerHybridMethod("getStats", &HybridNitroXrayCoreSpec::getStats);
+      prototype.registerHybridMethod("onStateChange", &HybridNitroXrayCoreSpec::onStateChange);
+      prototype.registerHybridMethod("startOlcrtc", &HybridNitroXrayCoreSpec::startOlcrtc);
+      prototype.registerHybridMethod("stopOlcrtc", &HybridNitroXrayCoreSpec::stopOlcrtc);
+      prototype.registerHybridMethod("getOlcrtcSocksPort", &HybridNitroXrayCoreSpec::getOlcrtcSocksPort);
+      prototype.registerHybridMethod("isOlcrtcRunning", &HybridNitroXrayCoreSpec::isOlcrtcRunning);
     });
   }
 

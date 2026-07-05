@@ -17,8 +17,17 @@ public protocol HybridNitroXrayCoreSpec_protocol: HybridObject {
   func requestVpnPermission() throws -> Promise<Void>
   func requestNotificationPermission() throws -> Promise<Bool>
   func isVpnConnected() throws -> Bool
+  func getVersion() throws -> String
   func startXray(configJson: String) throws -> Promise<Void>
   func stopXray() throws -> Promise<Void>
+  func setKillSwitch(enabled: Bool) throws -> Promise<Void>
+  func isKillSwitchEnabled() throws -> Bool
+  func getStats(outboundTag: String) throws -> Promise<TrafficStats>
+  func onStateChange(callback: @escaping (_ state: String, _ message: String) -> Void) throws -> Void
+  func startOlcrtc(configJson: String) throws -> Promise<Void>
+  func stopOlcrtc() throws -> Promise<Void>
+  func getOlcrtcSocksPort() throws -> Double
+  func isOlcrtcRunning() throws -> Bool
 }
 
 public extension HybridNitroXrayCoreSpec_protocol {

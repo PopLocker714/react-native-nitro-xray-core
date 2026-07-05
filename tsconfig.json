@@ -33,7 +33,8 @@
     "**/jest.config.js",
     "**/babel.config.js",
     "**/metro.config.js",
-    "**/tsconfig.json"
+    "**/tsconfig.json",
+    "**/*.test.ts"
   ],
   "include": [
     "src/**/*",

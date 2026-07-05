@@ -148,6 +148,49 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         return Promise.resolved(withResult: ())
     }
 
+    // MARK: - Kill switch (iOS: second pass — see docs/IMPLEMENTATION_PLAN.md)
+    // The real iOS mechanism is NEOnDemandRule + includeAllNetworks on the
+    // tunnel profile; stubbed until the iOS hardening pass.
+
+    func setKillSwitch(enabled: Bool) throws -> Promise<Void> {
+        let promise = Promise<Void>()
+        promise.reject(withError: NSError(
+            domain: "XrayCore", code: -100,
+            userInfo: [NSLocalizedDescriptionKey:
+                "setKillSwitch is not implemented on iOS yet (planned: NEOnDemandRule + includeAllNetworks)"]))
+        return promise
+    }
+
+    func isKillSwitchEnabled() throws -> Bool {
+        return false
+    }
+
+    // MARK: - olcrtc (iOS: second pass — see docs/IMPLEMENTATION_PLAN.md)
+    // The merged Android core builds; iOS needs an olcrtc_ios.go equivalent and
+    // a memory study (48 MB lib vs NE ~15 MB limit) before wiring. Stubbed so
+    // the shared spec compiles.
+
+    func startOlcrtc(configJson: String) throws -> Promise<Void> {
+        let promise = Promise<Void>()
+        promise.reject(withError: NSError(
+            domain: "XrayCore", code: -101,
+            userInfo: [NSLocalizedDescriptionKey:
+                "startOlcrtc is not implemented on iOS yet (merged core is Android-first)"]))
+        return promise
+    }
+
+    func stopOlcrtc() throws -> Promise<Void> {
+        return Promise.resolved(withResult: ())
+    }
+
+    func getOlcrtcSocksPort() throws -> Double {
+        return 0
+    }
+
+    func isOlcrtcRunning() throws -> Bool {
+        return false
+    }
+
     // MARK: - Private helpers
 
     private func loadOrCreateManager(completion: @escaping (Result<NETunnelProviderManager, Error>) -> Void) {

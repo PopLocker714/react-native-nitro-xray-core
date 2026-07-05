@@ -13,10 +13,13 @@
 #error NitroModules cannot be found! Are you sure you installed NitroModules properly?
 #endif
 
-
+// Forward declaration of `TrafficStats` to properly resolve imports.
+namespace margelo::nitro::nitroxraycore { struct TrafficStats; }
 
 #include <NitroModules/Promise.hpp>
 #include <string>
+#include "TrafficStats.hpp"
+#include <functional>
 
 namespace margelo::nitro::nitroxraycore {
 
@@ -53,8 +56,17 @@ namespace margelo::nitro::nitroxraycore {
       virtual std::shared_ptr<Promise<void>> requestVpnPermission() = 0;
       virtual std::shared_ptr<Promise<bool>> requestNotificationPermission() = 0;
       virtual bool isVpnConnected() = 0;
+      virtual std::string getVersion() = 0;
       virtual std::shared_ptr<Promise<void>> startXray(const std::string& configJson) = 0;
       virtual std::shared_ptr<Promise<void>> stopXray() = 0;
+      virtual std::shared_ptr<Promise<void>> setKillSwitch(bool enabled) = 0;
+      virtual bool isKillSwitchEnabled() = 0;
+      virtual std::shared_ptr<Promise<TrafficStats>> getStats(const std::string& outboundTag) = 0;
+      virtual void onStateChange(const std::function<void(const std::string& /* state */, const std::string& /* message */)>& callback) = 0;
+      virtual std::shared_ptr<Promise<void>> startOlcrtc(const std::string& configJson) = 0;
+      virtual std::shared_ptr<Promise<void>> stopOlcrtc() = 0;
+      virtual double getOlcrtcSocksPort() = 0;
+      virtual bool isOlcrtcRunning() = 0;
 
     protected:
       // Hybrid Setup
