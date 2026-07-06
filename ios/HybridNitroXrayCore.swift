@@ -25,6 +25,71 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
     // MARK: - Internal state
 
     private var manager: NETunnelProviderManager?
+    private var stateCallback: ((String, String) -> Void)?
+    private var statusObserver: NSObjectProtocol?
+
+    deinit {
+        if let obs = statusObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
+    }
+
+    // MARK: - getVersion
+    // The Xray engine runs in the Network Extension process, not here, so the
+    // app can't call the Go GetVersion() directly. Reported via the NE in a
+    // later pass; empty for now.
+
+    func getVersion() throws -> String {
+        return ""
+    }
+
+    // MARK: - getStats
+    // Real counters live in the NE process (QueryStats). Plumbed via
+    // sendProviderMessage in the stats pass; zeros until then.
+
+    func getStats(outboundTag: String) throws -> Promise<TrafficStats> {
+        return Promise.resolved(withResult: TrafficStats(uplink: 0, downlink: 0))
+    }
+
+    // MARK: - onStateChange
+    // Bridges NEVPNStatusDidChange to the JS state callback. Loads the current
+    // manager so status is correct even after an app restart, emits the current
+    // status once, then streams changes.
+
+    func onStateChange(callback: @escaping (String, String) -> Void) throws {
+        self.stateCallback = callback
+        NETunnelProviderManager.loadAllFromPreferences { [weak self] managers, _ in
+            guard let self = self else { return }
+            if let mgr = managers?.first(where: {
+                ($0.protocolConfiguration as? NETunnelProviderProtocol)?.providerBundleIdentifier == kTunnelBundleID
+            }) {
+                self.manager = mgr
+            }
+            if let status = self.manager?.connection.status {
+                self.emitState(status)
+            }
+            if self.statusObserver == nil {
+                self.statusObserver = NotificationCenter.default.addObserver(
+                    forName: .NEVPNStatusDidChange, object: nil, queue: .main
+                ) { [weak self] _ in
+                    guard let self = self, let status = self.manager?.connection.status else { return }
+                    self.emitState(status)
+                }
+            }
+        }
+    }
+
+    private func emitState(_ status: NEVPNStatus) {
+        let s: String
+        switch status {
+        case .connecting, .reasserting: s = "connecting"
+        case .connected: s = "connected"
+        case .disconnecting: s = "disconnecting"
+        case .disconnected, .invalid: s = "disconnected"
+        @unknown default: s = "disconnected"
+        }
+        self.stateCallback?(s, "")
+    }
 
     // MARK: - hasVpnPermission
 
