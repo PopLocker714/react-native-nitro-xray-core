@@ -23,6 +23,7 @@ import "C"
 import (
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 
 	"github.com/openlibrecommunity/olcrtc/mobile"
 )
@@ -114,7 +115,14 @@ func StartOlcrtc(configStr *C.char) C.int {
 			continue
 		}
 		iosOlcrtcSocksPort = cfg.SocksPort
-		logInfo(fmt.Sprintf("olcrtc: SOCKS5 ready on %d", cfg.SocksPort))
+		// Return unused heap pages to iOS now that the WebRTC handshake burst is
+		// over — the setup churns a lot of transient memory. Keeps the NE's
+		// resident footprint closer to the steady-state working set.
+		before := uint64(C.current_rss_bytes())
+		debug.FreeOSMemory()
+		after := uint64(C.current_rss_bytes())
+		logInfo(fmt.Sprintf("olcrtc: SOCKS5 ready on %d (rss %dMB→%dMB after GC)",
+			cfg.SocksPort, before/1048576, after/1048576))
 		return 0
 	}
 	return rc

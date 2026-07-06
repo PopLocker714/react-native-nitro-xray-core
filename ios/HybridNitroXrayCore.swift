@@ -415,9 +415,10 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
     }
 
     func isOlcrtcRunning() throws -> Bool {
-        // On iOS olcrtc's lifetime is the tunnel's: "armed" once a config is set
-        // and the tunnel is up.
-        return pendingOlcrtcConfig != nil && (manager?.connection.status == .connected)
+        // On iOS olcrtc runs inside the tunnel, which doesn't exist until
+        // connect. Report "armed" (a client config was set via startOlcrtc) so
+        // the connect-olcrtc paths — which check this BEFORE connecting — proceed.
+        return pendingOlcrtcConfig != nil
     }
 
     /// If an olcrtc client config is armed, inject it as the config's top-level

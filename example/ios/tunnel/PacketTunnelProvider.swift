@@ -151,21 +151,22 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             logger.info("startTunnel: TUN fd=\(tunFd)")
 
             // 5. olcrtc (optional): if the config carries an "olcrtc" client
-            //    block, start it FIRST — SOCKS-only, no TUN. xray then dials its
-            //    server through it via streamSettings.sockopt.dialerProxy →
-            //    127.0.0.1:<socksPort>, which buildXrayConfig already wired.
-            //    Merged runtime peaks ~57MB in the NE (~50MB budget) — tight.
+            //    block, start it in the BACKGROUND — SOCKS-only, no TUN. It must
+            //    NOT block startTunnel: olcrtc's WebRTC handshake + retries can
+            //    take tens of seconds, and iOS kills the NE if the completion
+            //    handler is delayed that long. xray dials its server through
+            //    olcrtc via dialerProxy → 127.0.0.1:<port>; those dials just
+            //    retry until olcrtc's SOCKS is up. Merged runtime ~57MB (tight).
             if let olcrtcBlock = self.olcrtcConfigJSON(from: finalConfig) {
-                logger.info("Starting olcrtc (SOCKS) before xray…")
-                let rc = olcrtcBlock.withCString { StartOlcrtc(UnsafeMutablePointer(mutating: $0)) }
-                if rc != 0 {
-                    let err = NSError(domain: "XrayTunnel", code: Int(rc),
-                        userInfo: [NSLocalizedDescriptionKey: "olcrtc failed to start (rc \(rc))"])
-                    logger.error("StartOlcrtc failed: \(rc)")
-                    completionHandler(err)
-                    return
+                DispatchQueue.global().async {
+                    logger.info("Starting olcrtc (SOCKS, background)…")
+                    let rc = olcrtcBlock.withCString { StartOlcrtc(UnsafeMutablePointer(mutating: $0)) }
+                    if rc == 0 {
+                        logger.info("olcrtc ready (rss \(String(format: "%.1f", Double(CurrentRSSBytes())/1048576), privacy: .public) MB)")
+                    } else {
+                        logger.error("StartOlcrtc failed: \(rc) — proxy dials fail until olcrtc is up")
+                    }
                 }
-                logger.info("olcrtc ready (rss \(String(format: "%.1f", Double(CurrentRSSBytes())/1048576)) MB)")
             }
 
             // 6. Start Xray Core ——————————————————————————————————————————
