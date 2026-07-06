@@ -94,34 +94,14 @@ build_slice "arm64-device" \
   "ios" "arm64" \
   "arm64-apple-ios14.0"
 
-# 2. x86_64 — Intel Mac simulator
-build_slice "x86_64-simulator" \
-  "ios" "amd64" \
-  "x86_64-apple-ios14.0-simulator"
-
-# 3. arm64 — Apple Silicon (M1/M2/M3) simulator
+# 2. arm64 — Apple Silicon simulator. x86_64 (Intel Mac) simulator is dropped:
+#    it doubled the simulator archive to ~124MB (over GitHub's 100MB limit) and
+#    Intel Macs are effectively gone. Modern Macs run the arm64 simulator.
 build_slice "arm64-simulator" \
   "ios" "arm64" \
   "arm64-apple-ios14.0-simulator"
 
-# ============================================================
-# Combine simulator slices with lipo (fat binary)
-# ============================================================
-echo "-----------------------------------------------------------"
-echo "Creating fat simulator binary (x86_64 + arm64)..."
-
-SIMULATOR_FAT="$BUILD_TMP/simulator-fat"
-mkdir -p "$SIMULATOR_FAT"
-
-lipo -create \
-  "$BUILD_TMP/x86_64-simulator/libxray.a" \
-  "$BUILD_TMP/arm64-simulator/libxray.a" \
-  -output "$SIMULATOR_FAT/libxray.a"
-
-# Copy header (they're identical across architectures for C exports)
-cp "$BUILD_TMP/arm64-device/libxray.h" "$SIMULATOR_FAT/libxray.h"
-
-echo " → $SIMULATOR_FAT/libxray.a (fat)"
+SIM_DIR="$BUILD_TMP/arm64-simulator"
 
 # ============================================================
 # Package as XCFramework
@@ -129,18 +109,18 @@ echo " → $SIMULATOR_FAT/libxray.a (fat)"
 echo "-----------------------------------------------------------"
 echo "Packaging Xray.xcframework..."
 
-# We need a module.modulemap for Swift to import the C symbols
 DEVICE_DIR="$BUILD_TMP/arm64-device"
-SIM_DIR="$SIMULATOR_FAT"
 
-# Create module map for each slice
-
+# Pass a headers dir containing ONLY the .h — if the .a is in the headers dir,
+# xcframework-create copies it into Headers/ too, doubling the committed size.
+DEV_HDR="$BUILD_TMP/dev-headers"; mkdir -p "$DEV_HDR"; cp "$DEVICE_DIR/libxray.h" "$DEV_HDR/"
+SIM_HDR="$BUILD_TMP/sim-headers"; mkdir -p "$SIM_HDR"; cp "$SIM_DIR/libxray.h" "$SIM_HDR/"
 
 xcodebuild -create-xcframework \
   -library "$DEVICE_DIR/libxray.a" \
-    -headers "$DEVICE_DIR" \
+    -headers "$DEV_HDR" \
   -library "$SIM_DIR/libxray.a" \
-    -headers "$SIM_DIR" \
+    -headers "$SIM_HDR" \
   -output "$OUTPUT_XCFRAMEWORK"
 
 # Cleanup
