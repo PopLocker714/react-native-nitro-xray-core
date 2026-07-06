@@ -150,9 +150,25 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
             logger.info("startTunnel: TUN fd=\(tunFd)")
 
-            // 5. Start Xray Core ——————————————————————————————————————————
-            //    StartXray is exported from the Go library (libxray.a / Xray.xcframework).
-            //    It receives the JSON config and the raw TUN fd.
+            // 5. olcrtc (optional): if the config carries an "olcrtc" client
+            //    block, start it FIRST — SOCKS-only, no TUN. xray then dials its
+            //    server through it via streamSettings.sockopt.dialerProxy →
+            //    127.0.0.1:<socksPort>, which buildXrayConfig already wired.
+            //    Merged runtime peaks ~57MB in the NE (~50MB budget) — tight.
+            if let olcrtcBlock = self.olcrtcConfigJSON(from: finalConfig) {
+                logger.info("Starting olcrtc (SOCKS) before xray…")
+                let rc = olcrtcBlock.withCString { StartOlcrtc(UnsafeMutablePointer(mutating: $0)) }
+                if rc != 0 {
+                    let err = NSError(domain: "XrayTunnel", code: Int(rc),
+                        userInfo: [NSLocalizedDescriptionKey: "olcrtc failed to start (rc \(rc))"])
+                    logger.error("StartOlcrtc failed: \(rc)")
+                    completionHandler(err)
+                    return
+                }
+                logger.info("olcrtc ready (rss \(String(format: "%.1f", Double(CurrentRSSBytes())/1048576)) MB)")
+            }
+
+            // 6. Start Xray Core ——————————————————————————————————————————
             let result = finalConfig.withCString { ptr in
                 StartXray(UnsafeMutablePointer(mutating: ptr), Int32(tunFd))
             }
@@ -161,44 +177,25 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 let err = NSError(domain: "XrayTunnel", code: Int(result),
                                   userInfo: [NSLocalizedDescriptionKey: "StartXray returned error code \(result)"])
                 logger.error("StartXray failed: \(result)")
+                StopOlcrtc()
                 completionHandler(err)
             } else {
                 logger.info("Xray started successfully")
                 completionHandler(nil)
-                // --- EXPERIMENT: merged-core memory footprint in the NE ---
-                // If the config carries an "olcrtcMeasure" block, start olcrtc
-                // and log RSS so we can check it fits the ~50MB NE budget.
-                self.runOlcrtcMemoryExperiment(config: finalConfig)
             }
         }
     }
 
-    /// One-off: start olcrtc inside the NE and sample process RSS to verify the
-    /// merged xray+olcrtc runtime fits the iOS packet-tunnel memory budget.
-    private func runOlcrtcMemoryExperiment(config: String) {
+    /// Extract the olcrtc client params (top-level "olcrtc" object) from the
+    /// xray config JSON as a JSON string for StartOlcrtc, or nil if absent.
+    private func olcrtcConfigJSON(from config: String) -> String? {
         guard
             let data = config.data(using: .utf8),
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let m = obj["olcrtcMeasure"] as? [String: Any]
-        else { return }
-
-        func rssMB() -> Double { Double(CurrentRSSBytes()) / 1024.0 / 1024.0 }
-        NSLog("MEM: after xray = %.1f MB", rssMB())
-
-        DispatchQueue.global().async {
-            let olcrtcJson = (try? JSONSerialization.data(withJSONObject: m))
-                .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
-            let rc = olcrtcJson.withCString { StartOlcrtc(UnsafeMutablePointer(mutating: $0)) }
-            NSLog("MEM: StartOlcrtc rc=%d", rc)
-            var peak = 0.0
-            for i in 0..<12 {
-                let r = rssMB()
-                if r > peak { peak = r }
-                NSLog("MEM: t+%ds rss=%.1f MB (peak %.1f)", i*2, r, peak)
-                Thread.sleep(forTimeInterval: 2)
-            }
-            NSLog("MEM: PEAK merged rss = %.1f MB (budget ~50MB)", peak)
-        }
+            let olcrtc = obj["olcrtc"] as? [String: Any],
+            let out = try? JSONSerialization.data(withJSONObject: olcrtc)
+        else { return nil }
+        return String(data: out, encoding: .utf8)
     }
 
     // MARK: - stopTunnel
@@ -206,6 +203,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     override func stopTunnel(with reason: NEProviderStopReason,
                              completionHandler: @escaping () -> Void) {
         logger.info("stopTunnel: reason=\(reason.rawValue)")
+        StopOlcrtc()
         let result = StopXray()
         if result != 0 {
             logger.error("StopXray returned error code \(result)")

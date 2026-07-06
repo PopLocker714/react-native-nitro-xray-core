@@ -257,10 +257,17 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
 
     func startXray(configJson: String) throws -> Promise<Void> {
         let promise = Promise<Void>()
+
+        // 0. If an olcrtc client config is armed (startOlcrtc was called), embed
+        //    it as a top-level "olcrtc" block so the NE starts olcrtc before xray.
+        //    xray's config already dials through it via dialerProxy.
+        let effectiveConfig = embedOlcrtc(into: configJson)
+
         // 1. Persist config so the Extension can read it on an on-demand cold
         //    start (when startVPNTunnel options aren't available). Prefer the
         //    encrypted Keychain; fall back to the App Group only if the shared
         //    keychain group isn't configured.
+        let configJson = effectiveConfig
         if XrayKeychain.save(configJson) {
             print("[HybridNitroXrayCore] Config saved to Keychain (shared group).")
         } else if let defaults = UserDefaults(suiteName: kAppGroup) {
@@ -372,30 +379,61 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         return UserDefaults.standard.bool(forKey: Self.kKillSwitchKey)
     }
 
-    // MARK: - olcrtc (iOS: second pass — see docs/IMPLEMENTATION_PLAN.md)
-    // The merged Android core builds; iOS needs an olcrtc_ios.go equivalent and
-    // a memory study (48 MB lib vs NE ~15 MB limit) before wiring. Stubbed so
-    // the shared spec compiles.
+    // MARK: - olcrtc (iOS)
+    // olcrtc runs inside the Network Extension (that's where the merged core
+    // loads), not in this app process — so it can't be started before the
+    // tunnel exists. Instead we record the client config here; startXray embeds
+    // it as a top-level "olcrtc" block in the config, and the NE starts olcrtc
+    // (SOCKS-only) before xray. Memory-tight: merged runtime peaks ~57MB in the
+    // NE (~50MB budget). The JS flow (startOlcrtc → connect) is unchanged.
+
+    private var pendingOlcrtcConfig: String?
+    private var olcrtcPort: Int = 0
 
     func startOlcrtc(configJson: String) throws -> Promise<Void> {
-        let promise = Promise<Void>()
-        promise.reject(withError: NSError(
-            domain: "XrayCore", code: -101,
-            userInfo: [NSLocalizedDescriptionKey:
-                "startOlcrtc is not implemented on iOS yet (merged core is Android-first)"]))
-        return promise
+        pendingOlcrtcConfig = configJson
+        // Resolve the SOCKS port (must match the dialerProxy the config builder
+        // wires). Default 10808, same as the native side.
+        var port = 10808
+        if let data = configJson.data(using: .utf8),
+           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let p = obj["socksPort"] as? NSNumber, p.intValue > 0 {
+            port = p.intValue
+        }
+        olcrtcPort = port
+        return Promise.resolved(withResult: ())
     }
 
     func stopOlcrtc() throws -> Promise<Void> {
+        pendingOlcrtcConfig = nil
+        olcrtcPort = 0
         return Promise.resolved(withResult: ())
     }
 
     func getOlcrtcSocksPort() throws -> Double {
-        return 0
+        return Double(olcrtcPort)
     }
 
     func isOlcrtcRunning() throws -> Bool {
-        return false
+        // On iOS olcrtc's lifetime is the tunnel's: "armed" once a config is set
+        // and the tunnel is up.
+        return pendingOlcrtcConfig != nil && (manager?.connection.status == .connected)
+    }
+
+    /// If an olcrtc client config is armed, inject it as the config's top-level
+    /// "olcrtc" block so the NE starts olcrtc before xray. Returns the config
+    /// unchanged when nothing is armed or JSON handling fails.
+    private func embedOlcrtc(into configJson: String) -> String {
+        guard let olcrtcJson = pendingOlcrtcConfig,
+              let cfgData = configJson.data(using: .utf8),
+              var cfg = (try? JSONSerialization.jsonObject(with: cfgData)) as? [String: Any],
+              let olData = olcrtcJson.data(using: .utf8),
+              let ol = (try? JSONSerialization.jsonObject(with: olData)) as? [String: Any]
+        else { return configJson }
+        cfg["olcrtc"] = ol
+        guard let out = try? JSONSerialization.data(withJSONObject: cfg),
+              let s = String(data: out, encoding: .utf8) else { return configJson }
+        return s
     }
 
     // iOS: the system owns the VPN status UI; notification text isn't applicable.

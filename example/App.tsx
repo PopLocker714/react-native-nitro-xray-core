@@ -254,36 +254,6 @@ function App(): React.JSX.Element {
 		}
 	};
 
-	// iOS EXPERIMENT: start a minimal xray config that also carries an
-	// olcrtcMeasure block; the NE starts olcrtc and logs RSS to verify the
-	// merged core fits the ~50MB packet-tunnel budget. Read via Console/log.
-	const measureOlcrtcMemoryIOS = async () => {
-		try {
-			addLog("Measuring merged-core memory (see Xcode Console: 'MEM:')…");
-			await XrayClient.ensurePermission();
-			const config = {
-				log: { loglevel: "warning" },
-				inbounds: [
-					{ tag: "tun-in", protocol: "tun", port: 0, settings: { name: "tun0", mtu: 1500 } },
-				],
-				outbounds: [{ protocol: "freedom", tag: "direct" }],
-				// consumed by the NE experiment branch, ignored by xray
-				olcrtcMeasure: {
-					carrier: OLCRTC.carrier,
-					transport: OLCRTC.transport,
-					roomId: OLCRTC.roomId,
-					clientId: OLCRTC.clientId,
-					keyHex: OLCRTC.keyHex,
-					debug: true,
-				},
-			};
-			await XrayClient.startRaw(JSON.stringify(config));
-			addLog("Started. Watch Xcode Console 'MEM:' lines for RSS/peak.");
-		} catch (e: unknown) {
-			addLog(`measure error: ${errStr(e)}`);
-		}
-	};
-
 	// olcrtc-only: TUN → olcrtc → server → internet, no VLESS server.
 	const connectOlcrtcOnly = async () => {
 		try {
@@ -441,13 +411,6 @@ function App(): React.JSX.Element {
 				/>
 			</View>
 
-			<View style={styles.row}>
-				<Button
-					title="iOS: measure olcrtc memory"
-					onPress={measureOlcrtcMemoryIOS}
-					color="#8a2be2"
-				/>
-			</View>
 
 			<ScrollView style={styles.serverList}>
 				{servers.map((s, i) => {
