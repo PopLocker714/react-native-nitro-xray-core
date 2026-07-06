@@ -25,24 +25,95 @@ bun add react-native-nitro-xray-core react-native-nitro-modules
 
 *(Note: The native Android libraries are pre-compiled and bundled into the package. You do **not** need to install Go or native NDK tools to use this library in your App).*
 
-### Basic Usage
+## ✨ Features
+
+Both platforms are device-verified (Android + iOS). iOS runs the engine in a
+Network Extension — see **[docs/IOS.md](docs/IOS.md)** for the iOS setup.
+
+- **Full Xray-core transport support** — VLESS / VMess / Trojan / Shadowsocks over
+  TCP / WS / gRPC / HTTPUpgrade / XHTTP / mKCP / h2, with TLS / Reality / XTLS-Vision.
+- **Subscription parsing (pure TS)** — `vless://` / `vmess://` / `ss://` / `trojan://`
+  share links, base64 subscriptions, and the `subscription-userinfo` quota/expiry header.
+- **Typed config builder** — turn a parsed server into a full Xray JSON config; raw
+  JSON stays available as an escape hatch.
+- **Connection state + traffic stats** — `connecting/connected/error` events and
+  session-continuous up/down counters that survive server switches.
+- **URLTest** — probe server latency and sort fastest-first.
+- **Kill switch** — Android holds the TUN as a blackhole on engine failure (fail-closed);
+  iOS uses `NEOnDemandRule` + `includeAllNetworks`.
+- **Configurable foreground notification** (Android) — title/text/Disconnect button,
+  translatable at runtime.
+- **olcrtc bypass** — tunnel through a whitelisted WebRTC side-channel (Russia bypass):
+  `device → xray → olcrtc → your server`. Android + iOS.
+
+## Basic Usage
+
+`XrayClient` is the recommended high-level entry point.
 
 ```typescript
-import { XrayEngine } from 'react-native-nitro-xray-core';
+import { XrayClient } from 'react-native-nitro-xray-core';
 
-// Start the engine
-const configJsonString = '{ ... }'; // Your Xray JSON config
-const tunFd = 123; // Android TUN File Descriptor (or -1/0 for proxy mode)
+// 1. Load servers from a subscription
+const servers = await XrayClient.fromSubscription('https://example.com/sub');
 
-const status = XrayEngine.start(configJsonString, tunFd);
+// 2. Ensure VPN permission, then connect to a server
+await XrayClient.ensurePermission();
+await XrayClient.connect(servers[0]);
 
-if (status === 0) {
-  console.log("Xray started successfully!");
-}
+// 3. Observe state + live traffic
+const unsub = XrayClient.onState((state, msg) => console.log(state, msg));
+const { uplink, downlink } = await XrayClient.stats();
 
-// Stop the engine
-XrayEngine.stop();
+// 4. Disconnect
+await XrayClient.disconnect();
 ```
+
+## API (`XrayClient`)
+
+**Subscriptions & config**
+- `parseLink(uri)` / `parseSubscription(payload)` → `ParsedServer[]`
+- `fromSubscription(url, init?)` → `ParsedServer[]`
+- `fromSubscriptionWithInfo(url, init?)` → `{ servers, info }` (quota/expiry)
+- `buildConfig(server, options?)` → raw Xray config object
+
+**Connect**
+- `ensurePermission()` — request VPN permission if needed
+- `connect(server, options?)` — build config + start the tunnel
+- `startRaw(configJson)` — start from hand-written Xray JSON
+- `disconnect()` / `isConnected()`
+- `onState(listener)` → unsubscribe fn (`disconnected/connecting/connected/disconnecting/error`)
+
+**Stats & info**
+- `stats(tag?)` → session-continuous `{ uplink, downlink }` (survives server switches)
+- `statsRaw(tag?)` → raw per-engine counters
+- `version()` — Xray-core version
+- `urlTest(servers, options?)` → latency-sorted results
+
+**Kill switch & notification**
+- `setKillSwitch(enabled)` / `isKillSwitchEnabled()`
+- `setNotificationConfig({ title?, text?, disconnectLabel?, ... })` (Android; translatable)
+- `requestNotificationPermission()` (Android 13+)
+
+**olcrtc bypass**
+- `startOlcrtc(config)` — start the WebRTC side-channel client (SOCKS5)
+- `getOlcrtcSocksPort()` / `isOlcrtcRunning()` / `stopOlcrtc()`
+- `connect(server, { olcrtc: { socksPort } })` — route the server dial through olcrtc
+- `connectOlcrtcOnly(options?)` — tunnel straight through olcrtc, no VLESS server
+
+```typescript
+// olcrtc: start the side-channel, then chain the server through it
+await XrayClient.startOlcrtc({
+  carrier: 'wbstream',        // whitelisted carrier the tunnel rides on
+  transport: 'vp8channel',    // must match your olcrtc server
+  roomId: '<room-uuid>',      // from the carrier
+  keyHex: '<64-hex key>',     // shared with the server
+  clientId: 'device-1',
+});
+const port = XrayClient.getOlcrtcSocksPort();
+await XrayClient.connect(servers[0], { olcrtc: { socksPort: port } });
+```
+
+The olcrtc **server** is deployed separately — see **[deploy/olcrtc](deploy/olcrtc)**.
 
 ---
 
