@@ -21,6 +21,57 @@ import os.log
 private let kAppGroup  = "group.com.xraycore.example"
 private let kConfigKey = "xray_config_json"
 
+// Encrypted config read shared with the app via a Keychain access group.
+// Mirrors XrayKeychain in HybridNitroXrayCore.swift (the NE target can't link
+// the library pod, so the read side is duplicated here).
+private enum XrayKeychain {
+    private static let accessGroupSuffix = "com.xraycore.example.shared"
+    private static let account = "xray_config_json"
+    private static let service = "com.xraycore.vpn"
+
+    private static func resolveAccessGroup() -> String? {
+        let probe: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: "xray_seed_probe",
+            kSecAttrService as String: service,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: AnyObject?
+        var status = SecItemCopyMatching(probe as CFDictionary, &result)
+        if status == errSecItemNotFound {
+            var add = probe
+            add.removeValue(forKey: kSecReturnAttributes as String)
+            add.removeValue(forKey: kSecMatchLimit as String)
+            add[kSecValueData as String] = Data()
+            SecItemAdd(add as CFDictionary, nil)
+            status = SecItemCopyMatching(probe as CFDictionary, &result)
+        }
+        guard status == errSecSuccess,
+              let attrs = result as? [String: Any],
+              let group = attrs[kSecAttrAccessGroup as String] as? String,
+              let prefix = group.components(separatedBy: ".").first
+        else { return nil }
+        return "\(prefix).\(accessGroupSuffix)"
+    }
+
+    static func load() -> String? {
+        guard let group = resolveAccessGroup() else { return nil }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: account,
+            kSecAttrService as String: service,
+            kSecAttrAccessGroup as String: group,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+}
+
 // MARK: - Logger
 private let logger = Logger(subsystem: "com.xraycore.example.tunnel", category: "PacketTunnel")
 
@@ -32,15 +83,17 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                               completionHandler: @escaping (Error?) -> Void) {
         logger.info("startTunnel called")
 
+        // Config source priority: startVPNTunnel options (in-memory, most
+        // direct) → encrypted Keychain (on-demand cold start) → App Group
+        // (legacy fallback).
         var configJson: String? = options?["config"] as? String
-
-        if let defaults = UserDefaults(suiteName: kAppGroup) {
-            logger.info("UserDefaults for App Group '\(kAppGroup)' initialized.")
-            if configJson == nil {
-                configJson = defaults.string(forKey: kConfigKey)
-            }
-        } else {
-            logger.warning("Could not initialize UserDefaults for App Group: \(kAppGroup). Falling back to options dictionary.")
+        if configJson == nil {
+            configJson = XrayKeychain.load()
+            if configJson != nil { logger.info("Config loaded from Keychain.") }
+        }
+        if configJson == nil, let defaults = UserDefaults(suiteName: kAppGroup) {
+            configJson = defaults.string(forKey: kConfigKey)
+            if configJson != nil { logger.info("Config loaded from App Group (fallback).") }
         }
 
         guard let finalConfig = configJson, !finalConfig.isEmpty else {

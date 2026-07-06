@@ -17,8 +17,91 @@ private var kAppGroup: String {
     return "group." + Bundle.main.bundleIdentifier!
 }
 
-/// UserDefaults key for the VPN config JSON
+/// UserDefaults key for the VPN config JSON (legacy App Group fallback)
 private let kConfigKey = "xray_config_json"
+
+/// Encrypted config storage shared between the app and the Network Extension
+/// via a Keychain access group. Preferred over the App Group plist because
+/// Keychain items are encrypted at rest and device-bound (not backed up / not
+/// synced). Falls back gracefully: if the access group isn't configured, save
+/// returns false and the caller uses the App Group.
+enum XrayKeychain {
+    // Suffix of the shared keychain-access-group (see both .entitlements files).
+    // The team prefix is resolved at runtime so the library isn't tied to a team.
+    private static let accessGroupSuffix = "com.xraycore.example.shared"
+    private static let account = "xray_config_json"
+    private static let service = "com.xraycore.vpn"
+
+    static func resolveAccessGroup() -> String? {
+        let probe: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: "xray_seed_probe",
+            kSecAttrService as String: service,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: AnyObject?
+        var status = SecItemCopyMatching(probe as CFDictionary, &result)
+        if status == errSecItemNotFound {
+            var add = probe
+            add.removeValue(forKey: kSecReturnAttributes as String)
+            add.removeValue(forKey: kSecMatchLimit as String)
+            add[kSecValueData as String] = Data()
+            SecItemAdd(add as CFDictionary, nil)
+            status = SecItemCopyMatching(probe as CFDictionary, &result)
+        }
+        guard status == errSecSuccess,
+              let attrs = result as? [String: Any],
+              let group = attrs[kSecAttrAccessGroup as String] as? String,
+              let prefix = group.components(separatedBy: ".").first
+        else { return nil }
+        return "\(prefix).\(accessGroupSuffix)"
+    }
+
+    @discardableResult
+    static func save(_ config: String) -> Bool {
+        guard let group = resolveAccessGroup(),
+              let data = config.data(using: .utf8) else { return false }
+        let base: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: account,
+            kSecAttrService as String: service,
+            kSecAttrAccessGroup as String: group,
+        ]
+        SecItemDelete(base as CFDictionary)
+        var add = base
+        add[kSecValueData as String] = data
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+    }
+
+    static func load() -> String? {
+        guard let group = resolveAccessGroup() else { return nil }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: account,
+            kSecAttrService as String: service,
+            kSecAttrAccessGroup as String: group,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func clear() {
+        guard let group = resolveAccessGroup() else { return }
+        let base: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: account,
+            kSecAttrService as String: service,
+            kSecAttrAccessGroup as String: group,
+        ]
+        SecItemDelete(base as CFDictionary)
+    }
+}
 
 class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
 
@@ -174,13 +257,17 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
 
     func startXray(configJson: String) throws -> Promise<Void> {
         let promise = Promise<Void>()
-        // 1. Persist config in shared container so Extension can read it
-        if let defaults = UserDefaults(suiteName: kAppGroup) {
-            print("[HybridNitroXrayCore] Writing config to App Group: \(kAppGroup)")
+        // 1. Persist config so the Extension can read it on an on-demand cold
+        //    start (when startVPNTunnel options aren't available). Prefer the
+        //    encrypted Keychain; fall back to the App Group only if the shared
+        //    keychain group isn't configured.
+        if XrayKeychain.save(configJson) {
+            print("[HybridNitroXrayCore] Config saved to Keychain (shared group).")
+        } else if let defaults = UserDefaults(suiteName: kAppGroup) {
+            print("[HybridNitroXrayCore] Keychain unavailable; wrote config to App Group.")
             defaults.set(configJson, forKey: kConfigKey)
-            // defaults.synchronize() is deprecated and can cause CFPrefs error
         } else {
-            let errorMsg = "App Group '\(kAppGroup)' not found. Check entitlements."
+            let errorMsg = "No secure store: Keychain group and App Group '\(kAppGroup)' both unavailable. Check entitlements."
             print("[HybridNitroXrayCore] ERROR: \(errorMsg)")
             promise.reject(withError: NSError(domain: "XrayCore", code: -1,
                            userInfo: [NSLocalizedDescriptionKey: errorMsg]))
