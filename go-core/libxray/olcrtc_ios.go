@@ -43,6 +43,8 @@ type iosOlcrtcConfig struct {
 	Vp8Fps         int    `json:"vp8Fps"`
 	Vp8BatchSize   int    `json:"vp8BatchSize"`
 	Debug          bool   `json:"debug"`
+	// Retries for the flaky carrier TURN/ICE handshake. Default 3.
+	Retries int `json:"retries"`
 }
 
 const iosDefaultOlcrtcSocksPort = 10808
@@ -82,26 +84,40 @@ func StartOlcrtc(configStr *C.char) C.int {
 		mobile.SetVP8Options(cfg.Vp8Fps, cfg.Vp8BatchSize)
 	}
 
-	var err error
-	if cfg.Transport != "" {
-		err = mobile.StartWithTransport(cfg.Carrier, cfg.Transport, cfg.RoomID,
-			cfg.ClientID, cfg.KeyHex, cfg.SocksPort, cfg.SocksUser, cfg.SocksPass)
-	} else {
-		err = mobile.Start(cfg.Carrier, cfg.RoomID, cfg.ClientID, cfg.KeyHex,
-			cfg.SocksPort, cfg.SocksUser, cfg.SocksPass)
+	retries := cfg.Retries
+	if retries <= 0 {
+		retries = 3
 	}
-	if err != nil {
-		logError(fmt.Sprintf("olcrtc: start: %v", err))
-		return -2
+
+	var rc C.int = -3
+	for attempt := 1; attempt <= retries; attempt++ {
+		if mobile.IsRunning() {
+			mobile.Stop()
+		}
+		var err error
+		if cfg.Transport != "" {
+			err = mobile.StartWithTransport(cfg.Carrier, cfg.Transport, cfg.RoomID,
+				cfg.ClientID, cfg.KeyHex, cfg.SocksPort, cfg.SocksUser, cfg.SocksPass)
+		} else {
+			err = mobile.Start(cfg.Carrier, cfg.RoomID, cfg.ClientID, cfg.KeyHex,
+				cfg.SocksPort, cfg.SocksUser, cfg.SocksPass)
+		}
+		if err != nil {
+			logError(fmt.Sprintf("olcrtc: start (attempt %d/%d): %v", attempt, retries, err))
+			rc = -2
+			continue
+		}
+		if err := mobile.WaitReady(cfg.ReadyTimeoutMs); err != nil {
+			logError(fmt.Sprintf("olcrtc: not ready (attempt %d/%d): %v", attempt, retries, err))
+			mobile.Stop()
+			rc = -3
+			continue
+		}
+		iosOlcrtcSocksPort = cfg.SocksPort
+		logInfo(fmt.Sprintf("olcrtc: SOCKS5 ready on %d", cfg.SocksPort))
+		return 0
 	}
-	if err := mobile.WaitReady(cfg.ReadyTimeoutMs); err != nil {
-		logError(fmt.Sprintf("olcrtc: not ready: %v", err))
-		mobile.Stop()
-		return -3
-	}
-	iosOlcrtcSocksPort = cfg.SocksPort
-	logInfo(fmt.Sprintf("olcrtc: SOCKS5 ready on %d", cfg.SocksPort))
-	return 0
+	return rc
 }
 
 //export StopOlcrtc

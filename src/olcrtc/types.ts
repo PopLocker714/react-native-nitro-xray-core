@@ -37,4 +37,10 @@ export interface OlcrtcClientConfig {
   vp8BatchSize?: number
   /** Emit olcrtc's verbose internal logs (pion/ICE/KCP) to Android logcat. */
   debug?: boolean
+  /**
+   * Retries for bringing up the WebRTC link. The carrier's TURN/ICE handshake
+   * is flaky and often needs a second attempt, so a start "fails" the first
+   * time and succeeds on retry — this makes that automatic. Default 3.
+   */
+  retries?: number
 }

@@ -44,6 +44,10 @@ type olcrtcConfig struct {
 	// Emit olcrtc's verbose internal logs (pion/ICE/KCP) to Android logcat under
 	// tag "XrayGo" — use to diagnose relay vs direct paths and packet loss.
 	Debug bool `json:"debug"`
+	// How many times to (re)try bringing up the WebRTC link before giving up.
+	// The carrier's TURN/ICE negotiation is flaky and often needs a second try,
+	// so this smooths over "didn't connect the first time". Default 3.
+	Retries int `json:"retries"`
 }
 
 // olcrtcLogWriter pipes olcrtc's internal logs into Android logcat (via the
@@ -110,32 +114,55 @@ func StartOlcrtc(configStr *C.char) C.int {
 		mobile.SetVP8Options(cfg.Vp8Fps, cfg.Vp8BatchSize)
 	}
 
-	var err error
-	if cfg.Transport != "" {
-		err = mobile.StartWithTransport(
-			cfg.Carrier, cfg.Transport, cfg.RoomID, cfg.ClientID, cfg.KeyHex,
-			cfg.SocksPort, cfg.SocksUser, cfg.SocksPass,
-		)
-	} else {
-		err = mobile.Start(
-			cfg.Carrier, cfg.RoomID, cfg.ClientID, cfg.KeyHex,
-			cfg.SocksPort, cfg.SocksUser, cfg.SocksPass,
-		)
-	}
-	if err != nil {
-		logError(fmt.Sprintf("olcrtc: start failed: %v", err))
-		return -2
+	retries := cfg.Retries
+	if retries <= 0 {
+		retries = 3
 	}
 
-	if err := mobile.WaitReady(cfg.ReadyTimeoutMs); err != nil {
-		logError(fmt.Sprintf("olcrtc: not ready: %v", err))
-		mobile.Stop()
-		return -3
+	rc := olcrtcStartWithRetry(cfg, retries)
+	if rc == 0 {
+		olcrtcSocksPort = cfg.SocksPort
+		logInfo(fmt.Sprintf("olcrtc: SOCKS5 ready on port %d", cfg.SocksPort))
 	}
+	return rc
+}
 
-	olcrtcSocksPort = cfg.SocksPort
-	logInfo(fmt.Sprintf("olcrtc: SOCKS5 ready on port %d", cfg.SocksPort))
-	return 0
+// olcrtcStartWithRetry attempts start+WaitReady up to `retries` times. The
+// carrier's TURN/ICE handshake is flaky and often needs a retry; each failed
+// attempt is torn down before the next. Returns 0 on success, -2 start error,
+// -3 not ready within the timeout.
+func olcrtcStartWithRetry(cfg olcrtcConfig, retries int) C.int {
+	var rc C.int = -3
+	for attempt := 1; attempt <= retries; attempt++ {
+		if mobile.IsRunning() {
+			mobile.Stop()
+		}
+		var err error
+		if cfg.Transport != "" {
+			err = mobile.StartWithTransport(
+				cfg.Carrier, cfg.Transport, cfg.RoomID, cfg.ClientID, cfg.KeyHex,
+				cfg.SocksPort, cfg.SocksUser, cfg.SocksPass,
+			)
+		} else {
+			err = mobile.Start(
+				cfg.Carrier, cfg.RoomID, cfg.ClientID, cfg.KeyHex,
+				cfg.SocksPort, cfg.SocksUser, cfg.SocksPass,
+			)
+		}
+		if err != nil {
+			logError(fmt.Sprintf("olcrtc: start failed (attempt %d/%d): %v", attempt, retries, err))
+			rc = -2
+			continue
+		}
+		if err := mobile.WaitReady(cfg.ReadyTimeoutMs); err != nil {
+			logError(fmt.Sprintf("olcrtc: not ready (attempt %d/%d): %v", attempt, retries, err))
+			mobile.Stop()
+			rc = -3
+			continue
+		}
+		return 0
+	}
+	return rc
 }
 
 // StopOlcrtc gracefully stops the olcRTC client. Idempotent.
