@@ -144,7 +144,16 @@ The example app shows the subscription plan at a glance — used/total quota and
 - [x] ISC-80: `build_android.sh` carries `-checklinkname=0` (required: `wlynxg/anet` → `net.zoneCache` linkname, rejected by Go 1.23+; anet v0.0.5 latest still needs it)
 - [x] ISC-81: Both ABIs build via `build_android.sh` — arm64-v8a (48.5 MB) + armeabi-v7a (49.9 MB) `libxray.so`, each with all 4 olcrtc symbols (`nm -D`), headers regenerated with the decls. On-device StartOlcrtc bring-up still device-gated (ISC-94).
 - [ ] ISC-82: [DEFERRED] Android VpnService socket protection wired for olcrtc's own WebRTC sockets via `mobile.SetProtector` (else they loop back into the tun) — follow-up before real traffic
-- [ ] ISC-83: [DEFERRED] iOS merged core — needs an `olcrtc_ios.go` equivalent + the 48 MB lib vs NE ~15 MB memory limit is a hard open question (second pass)
+- [ ] ISC-83: [DEFERRED] iOS merged core (olcrtc) — needs an `olcrtc_ios.go` equivalent + the 48 MB lib vs NE ~15 MB memory limit is a hard open question (iOS Phase 3)
+
+### iOS Phase 0-1 — device-verified 2026-07-06
+- [x] ISC-101: iOS Swift restored to spec conformance — `getVersion`/`getStats`/`onStateChange` implemented; example builds green (simulator, app + NE)
+- [x] ISC-102: `onStateChange` bridges `NEVPNStatusDidChange` → JS callback (loads manager so status is right after app restart; emits once + streams)
+- [x] ISC-103: `main_ios.go` exports `QueryStats` (mirrors Android); `Xray.xcframework` rebuilt with it in both slices
+- [x] ISC-104: `getStats()` app↔NE bridge via `sendProviderMessage`/`handleAppMessage` ({cmd:stats/version}) — real counters from the NE process
+- [x] ISC-105: `setKillSwitch()` real impl — `NEOnDemandRule` + `includeAllNetworks` (fail-closed), persisted in UserDefaults, re-applied on every profile write; replaces the throw-stub
+- [x] ISC-106: Signed device build (team 4548L5D8WL, automatic signing, App Group + Network Extension) installed on iPhone 11 and VERIFIED on-device: connect, live stats, kill switch, state events all work
+- [ ] ISC-107: [DEFERRED] iOS Phase 2 hardening — Keychain for config secrets (vs App Group plist), configurable DNS in NE (currently hardcoded 1.1.1.1/8.8.8.8), robust `tunnelFileDescriptor` (0..256 scan is fragile)
 
 > **Build-only verification note:** the c-shared links and exports the symbols; StartOlcrtc has NOT been exercised on a device (needs real carrier/room/key). ISC-81 gates real traffic.
 
