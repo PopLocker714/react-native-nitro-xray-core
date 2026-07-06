@@ -158,7 +158,12 @@ The example app shows the subscription plan at a glance — used/total quota and
 - [x] ISC-108: NE DNS configurable — derived from the Xray config's `dns.servers` (valid IPs only), neutral fallback; replaces hardcoded 1.1.1.1/8.8.8.8
 - [x] ISC-109: Robust `tunnelFileDescriptor` — returns the highest utun fd (our tunnel is newest) instead of first match; KVC fallback kept
 - [x] ISC-110: `keychain-access-groups` entitlement added to app + NE; signed Release build (JS embedded, standalone) installed + verified on iPhone
-- [ ] ISC-111: [DEFERRED] iOS Phase 3 — olcrtc merged core: needs `olcrtc_ios.go` + resolve the 48 MB lib vs NE ~15 MB Jetsam limit (hard open question — see [[olcrtc-ios-merged-core-open-question]])
+### iOS Phase 3 — olcrtc feasibility (on-device measurement 2026-07-06)
+- [x] ISC-111: `olcrtc_ios.go` written; merged xray+olcrtc+pion `Xray.xcframework` builds (`-checklinkname=0`), links, and LOADS on device
+- [x] ISC-112: `StartOlcrtc` in the NE returns rc=0 — WebRTC runtime comes up inside the iOS packet-tunnel process
+- [x] ISC-113: Measured RSS on iPhone 11 / iOS 18.4.1: xray baseline 40MB → olcrtc peak ~56.8MB, NO Jetsam kill. Old "15MB limit" was iOS 14-era; real limit ~50MB (iOS 15+). 48MB was disk size, not RSS.
+- [ ] ISC-114: [OPEN] Peak ~57MB is over the ~50MB budget — survived but risky under memory pressure. Needs optimization before production: trim xray `distro/all` to used protocols (biggest lever — baseline is mostly mapped code), tune GOGC/SetMemoryLimit, leaner WebRTC. See [[olcrtc-ios-merged-core-open-question]]
+- [ ] ISC-115: [DEFERRED] Full olcrtc-iOS wiring (Swift startOlcrtc real impl + dialerProxy chain) — gated on ISC-114 memory optimization
 
 > **Build-only verification note:** the c-shared links and exports the symbols; StartOlcrtc has NOT been exercised on a device (needs real carrier/room/key). ISC-81 gates real traffic.
 
