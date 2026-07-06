@@ -215,6 +215,11 @@ function App(): React.JSX.Element {
 		setOlcrtcOn(enabled);
 		try {
 			if (enabled) {
+				// Request VPN permission up front so iOS prompts to (re)create the
+				// tunnel config now, not only on the later connect. On iOS olcrtc
+				// runs inside the NE, so it needs the VPN profile to exist.
+				addLog(`Ensuring VPN permission…`);
+				await XrayClient.ensurePermission();
 				addLog(
 					`Starting olcrtc (${OLCRTC.carrier}/${OLCRTC.transport}, vp8 fps=${vp8Fps})…`,
 				);
