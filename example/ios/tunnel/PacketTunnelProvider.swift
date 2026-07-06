@@ -66,8 +66,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         ipv6.includedRoutes = [NEIPv6Route.default()]
         settings.ipv6Settings = ipv6
 
-        // DNS — use Xray's built-in resolver; localhost proxy addresses
-        settings.dnsSettings = NEDNSSettings(servers: ["1.1.1.1", "8.8.8.8"])
+        // DNS — derive from the Xray config's dns.servers (IP entries only;
+        // drop things like "localhost" that aren't valid NEDNSSettings servers).
+        // Falls back to a neutral default when the config specifies none.
+        settings.dnsSettings = NEDNSSettings(servers: dnsServers(from: finalConfig))
 
         // MTU must be <= physical interface MTU to avoid fragmentation
         settings.mtu = 1500
@@ -174,24 +176,55 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
     // MARK: - Private helpers
 
+    /// Valid IPv4/IPv6 DNS servers from the Xray config's `dns.servers`.
+    /// Non-IP entries (e.g. "localhost", "https://..." DoH) are dropped since
+    /// NEDNSSettings only accepts plain IPs. Returns a neutral default if none.
+    private func dnsServers(from configJson: String) -> [String] {
+        guard
+            let data = configJson.data(using: .utf8),
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let dns = obj["dns"] as? [String: Any],
+            let servers = dns["servers"] as? [Any]
+        else {
+            return ["1.1.1.1", "1.0.0.1"]
+        }
+        let ips = servers.compactMap { $0 as? String }.filter { isIPAddress($0) }
+        return ips.isEmpty ? ["1.1.1.1", "1.0.0.1"] : ips
+    }
+
+    private func isIPAddress(_ s: String) -> Bool {
+        var v4 = in_addr()
+        if inet_pton(AF_INET, s, &v4) == 1 { return true }
+        var v6 = in6_addr()
+        if inet_pton(AF_INET6, s, &v6) == 1 { return true }
+        return false
+    }
+
     /// Returns the raw file descriptor of the packet flow TUN socket.
     /// This is the standard approach used by Wireguard-Go, sing-box, etc.
+    ///
+    /// The old code returned the FIRST fd whose name matched "utun", which is
+    /// fragile: an unrelated utun (e.g. a system VPN) can own a lower fd and be
+    /// picked by mistake. Our packet tunnel is the most recently created utun,
+    /// so it is the HIGHEST-numbered matching fd — scan all and keep the max.
     private func tunnelFileDescriptor() -> Int32? {
-        var buf = [CChar](repeating: 0, count: Int(MAXPATHLEN))
-        var len = socklen_t(MAXPATHLEN)
-        // utun kernel socket
-        for fd: Int32 in 0..<256 {
+        var last: Int32? = nil
+        var buf = [CChar](repeating: 0, count: Int(IFNAMSIZ))
+        for fd: Int32 in 0..<1024 {
+            var len = socklen_t(buf.count)
             if getsockopt(fd, 2 /* SYSPROTO_CONTROL */, 2 /* UTUN_OPT_IFNAME */, &buf, &len) == 0 {
-                return fd
+                let name = String(cString: buf)
+                if name.hasPrefix("utun") {
+                    last = fd
+                }
             }
         }
+        if let fd = last { return fd }
 
         // Fallback: read via private KVC key on NEPacketTunnelFlow
-        let key = "socket.fileDescriptor"
-        if let val = self.value(forKeyPath: "packetFlow.\(key)") as? Int32 {
+        if let val = self.value(forKeyPath: "packetFlow.socket.fileDescriptor") as? Int32 {
             return val
         }
-
         return nil
     }
 }
