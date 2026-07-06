@@ -1,62 +1,74 @@
-# react-native-nitro-xray-core (rc)
+# react-native-nitro-xray-core
 
 [![npm version](https://img.shields.io/npm/v/react-native-nitro-xray-core.svg?style=flat-square)](https://www.npmjs.com/package/react-native-nitro-xray-core)
 [![npm license](https://img.shields.io/npm/l/react-native-nitro-xray-core.svg?style=flat-square)](https://github.com/PopLocker714/react-native-nitro-xray-core/blob/master/LICENSE)
 [![Build Android](https://github.com/PopLocker714/react-native-nitro-xray-core/actions/workflows/android-build.yml/badge.svg)](https://github.com/PopLocker714/react-native-nitro-xray-core/actions/workflows/android-build.yml)
 [![Build iOS](https://github.com/PopLocker714/react-native-nitro-xray-core/actions/workflows/ios-build.yml/badge.svg)](https://github.com/PopLocker714/react-native-nitro-xray-core/actions/workflows/ios-build.yml)
 
-DO NOT USE IN PRODUCTION!!!
+A high-performance **VPN engine for React Native** powered by [Xray-core](https://github.com/XTLS/Xray-core),
+with an optional [olcrtc](https://github.com/openlibrecommunity/olcrtc) WebRTC
+side-channel for censorship circumvention. Built on [Nitro Modules](https://github.com/mrousavy/nitro)
+for zero-bridge native performance.
 
-A high-performance React Native VPN library powered by the Xray-core engine. Built with Nitro modules for maximum performance and zero C++ bridge overhead.
+Device-verified on **Android** and **iOS** (Network Extension).
 
-## 🚀 Getting Started (For App Developers)
+> ⚠️ **Early stage.** The API is stabilizing and olcrtc is alpha. Pin the version
+> and test on real devices before shipping.
 
-If you just want to use the VPN engine in your React Native app, follow these steps.
+## What is this?
 
-### Requirements
-- React Native v0.76.0 or higher
-- Node 18.0.0 or higher
+- **[Xray-core](https://github.com/XTLS/Xray-core)** is a powerful proxy platform
+  (the VLESS/VMess/Trojan/Reality ecosystem). This library embeds the real Go
+  engine and drives it from JS — so you get the *full* protocol/transport surface,
+  not a re-implementation. You point it at a server (usually from a subscription),
+  it raises a TUN and routes device traffic through the proxy.
 
-### Installation
-
-```bash
-bun add react-native-nitro-xray-core react-native-nitro-modules
-```
-
-*(Note: The native Android libraries are pre-compiled and bundled into the package. You do **not** need to install Go or native NDK tools to use this library in your App).*
+- **[olcrtc](https://github.com/openlibrecommunity/olcrtc)** tunnels traffic
+  through a **whitelisted WebRTC service** (e.g. video-call carriers) that stays
+  reachable even where normal proxies are blocked. It exposes a local SOCKS5 that
+  Xray dials through — so the whole chain is `device → Xray → olcrtc → your server`.
+  The proxy handshake rides *inside* the allowed WebRTC channel, so the carrier
+  only sees whitelisted traffic. This is the optional "bypass" path.
 
 ## ✨ Features
 
-Both platforms are device-verified (Android + iOS). iOS runs the engine in a
-Network Extension — see **[docs/IOS.md](docs/IOS.md)** for the iOS setup.
-
-- **Full Xray-core transport support** — VLESS / VMess / Trojan / Shadowsocks over
+- **Full Xray-core transports** — VLESS / VMess / Trojan / Shadowsocks over
   TCP / WS / gRPC / HTTPUpgrade / XHTTP / mKCP / h2, with TLS / Reality / XTLS-Vision.
 - **Subscription parsing (pure TS)** — `vless://` / `vmess://` / `ss://` / `trojan://`
-  share links, base64 subscriptions, and the `subscription-userinfo` quota/expiry header.
-- **Typed config builder** — turn a parsed server into a full Xray JSON config; raw
-  JSON stays available as an escape hatch.
-- **Connection state + traffic stats** — `connecting/connected/error` events and
+  links, base64 subscriptions, and the `subscription-userinfo` quota/expiry header.
+- **Typed config builder** — a parsed server → a full Xray JSON config. Raw JSON
+  stays available as an escape hatch.
+- **State + traffic stats** — `connecting/connected/error` events and
   session-continuous up/down counters that survive server switches.
 - **URLTest** — probe server latency and sort fastest-first.
-- **Kill switch** — Android holds the TUN as a blackhole on engine failure (fail-closed);
-  iOS uses `NEOnDemandRule` + `includeAllNetworks`.
-- **Configurable foreground notification** (Android) — title/text/Disconnect button,
-  translatable at runtime.
-- **olcrtc bypass** — tunnel through a whitelisted WebRTC side-channel (Russia bypass):
-  `device → xray → olcrtc → your server`. Android + iOS.
+- **Kill switch** — fail-closed: Android holds the TUN as a blackhole on engine
+  failure; iOS uses `NEOnDemandRule` + `includeAllNetworks`.
+- **Configurable foreground notification** (Android) — title / text / Disconnect
+  button, translatable at runtime.
+- **olcrtc bypass** — WebRTC side-channel, chained or standalone. Android + iOS.
 
-## Basic Usage
+## Installation
+
+```bash
+bun add react-native-nitro-xray-core react-native-nitro-modules
+# or: npm install / yarn add
+```
+
+The native Android binaries are pre-compiled and bundled — you do **not** need Go
+or the NDK to use the library. iOS requires a one-time Network Extension setup
+(see [docs/IOS.md](docs/IOS.md)).
+
+## Quick start
 
 `XrayClient` is the recommended high-level entry point.
 
 ```typescript
 import { XrayClient } from 'react-native-nitro-xray-core';
 
-// 1. Load servers from a subscription
+// 1. Load servers from a subscription URL
 const servers = await XrayClient.fromSubscription('https://example.com/sub');
 
-// 2. Ensure VPN permission, then connect to a server
+// 2. Ask for VPN permission, then connect
 await XrayClient.ensurePermission();
 await XrayClient.connect(servers[0]);
 
@@ -66,14 +78,71 @@ const { uplink, downlink } = await XrayClient.stats();
 
 // 4. Disconnect
 await XrayClient.disconnect();
+unsub();
 ```
+
+## Examples
+
+### Subscription with quota/expiry
+
+```typescript
+const { servers, info } = await XrayClient.fromSubscriptionWithInfo(SUB_URL);
+if (info?.total) {
+  const used = (info.upload ?? 0) + (info.download ?? 0);
+  console.log(`Used ${used} / ${info.total} bytes`);
+}
+```
+
+### Pick the fastest server
+
+```typescript
+const ranked = await XrayClient.urlTest(servers);      // fastest first, dead last
+await XrayClient.connect(ranked[0].server);
+```
+
+### Kill switch + notification (Android)
+
+```typescript
+await XrayClient.setKillSwitch(true);                   // block traffic if the engine dies
+XrayClient.setNotificationConfig({
+  title: 'My VPN',
+  text: 'Connected — traffic protected',
+  disconnectLabel: 'Disconnect',                        // shown as a notification action
+});
+```
+
+### olcrtc bypass — chain a server through the WebRTC side-channel
+
+```typescript
+// Start olcrtc (local SOCKS5), then route the server dial through it.
+await XrayClient.startOlcrtc({
+  carrier: 'wbstream',        // whitelisted carrier the tunnel rides on
+  transport: 'vp8channel',    // must match your olcrtc server
+  roomId: '<room-uuid>',      // created on the carrier
+  keyHex: '<64-hex key>',     // shared secret with the server
+  clientId: 'device-1',
+});
+const port = XrayClient.getOlcrtcSocksPort();
+await XrayClient.connect(servers[0], { olcrtc: { socksPort: port } });
+```
+
+### olcrtc-only — tunnel straight through olcrtc, no VLESS server
+
+```typescript
+await XrayClient.startOlcrtc({ carrier: 'wbstream', transport: 'vp8channel',
+  roomId: '<room-uuid>', keyHex: '<key>', clientId: 'device-1' });
+await XrayClient.connectOlcrtcOnly();                   // device → Xray-TUN → olcrtc → server
+```
+
+The olcrtc **server** is deployed separately — see [deploy/olcrtc](deploy/olcrtc)
+for a ready Docker setup.
 
 ## API (`XrayClient`)
 
 **Subscriptions & config**
 - `parseLink(uri)` / `parseSubscription(payload)` → `ParsedServer[]`
 - `fromSubscription(url, init?)` → `ParsedServer[]`
-- `fromSubscriptionWithInfo(url, init?)` → `{ servers, info }` (quota/expiry)
+- `fromSubscriptionWithInfo(url, init?)` → `{ servers, info }`
 - `buildConfig(server, options?)` → raw Xray config object
 
 **Connect**
@@ -84,131 +153,64 @@ await XrayClient.disconnect();
 - `onState(listener)` → unsubscribe fn (`disconnected/connecting/connected/disconnecting/error`)
 
 **Stats & info**
-- `stats(tag?)` → session-continuous `{ uplink, downlink }` (survives server switches)
+- `stats(tag?)` → session-continuous `{ uplink, downlink }`
 - `statsRaw(tag?)` → raw per-engine counters
 - `version()` — Xray-core version
 - `urlTest(servers, options?)` → latency-sorted results
 
 **Kill switch & notification**
 - `setKillSwitch(enabled)` / `isKillSwitchEnabled()`
-- `setNotificationConfig({ title?, text?, disconnectLabel?, ... })` (Android; translatable)
+- `setNotificationConfig({ title?, text?, disconnectLabel?, ... })` (Android)
 - `requestNotificationPermission()` (Android 13+)
 
 **olcrtc bypass**
-- `startOlcrtc(config)` — start the WebRTC side-channel client (SOCKS5)
-- `getOlcrtcSocksPort()` / `isOlcrtcRunning()` / `stopOlcrtc()`
-- `connect(server, { olcrtc: { socksPort } })` — route the server dial through olcrtc
-- `connectOlcrtcOnly(options?)` — tunnel straight through olcrtc, no VLESS server
+- `startOlcrtc(config)` / `stopOlcrtc()`
+- `getOlcrtcSocksPort()` / `isOlcrtcRunning()`
+- `connect(server, { olcrtc: { socksPort } })` — chained
+- `connectOlcrtcOnly(options?)` — standalone
 
-```typescript
-// olcrtc: start the side-channel, then chain the server through it
-await XrayClient.startOlcrtc({
-  carrier: 'wbstream',        // whitelisted carrier the tunnel rides on
-  transport: 'vp8channel',    // must match your olcrtc server
-  roomId: '<room-uuid>',      // from the carrier
-  keyHex: '<64-hex key>',     // shared with the server
-  clientId: 'device-1',
-});
-const port = XrayClient.getOlcrtcSocksPort();
-await XrayClient.connect(servers[0], { olcrtc: { socksPort: port } });
-```
+## iOS setup
 
-The olcrtc **server** is deployed separately — see **[deploy/olcrtc](deploy/olcrtc)**.
+iOS runs the engine inside a **Network Extension** (a separate process with its
+own memory budget), so it needs a one-time Xcode + Apple Developer setup (App
+Group, Packet Tunnel target, linking `Xray.xcframework`). A paid Apple Developer
+account and a real device are required — the Simulator can't run a VPN.
 
----
+👉 Full step-by-step guide: **[docs/IOS.md](docs/IOS.md)**.
 
-## 🍏 iOS Setup Guide (Network Extension)
+## Building from source (contributors)
 
-To use `react-native-nitro-xray-core` on iOS, you cannot simply run it in the main application. Apple requires VPN processes to run inside a separate background target known as a **Network Extension (Packet Tunnel Provider)**. Due to strict iOS security and memory limits (15 MB Jetsam limit), follow these steps precisely:
+You only need this to change the native Go engine — app developers use the
+pre-built binaries.
 
-### 1. Capabilities & Identifiers
-Go to the **Apple Developer Portal** and configure your App ID:
-- Add the **Network Extension** capability and check **Packet Tunnel**.
-- Add the **App Groups** capability (e.g., `group.com.yourcompany.app`).
-- Create a *second* App ID for your tunnel (e.g., `com.yourcompany.app.tunnel`) and assign it the **same** App Group and Network Extension capabilities.
-
-### 2. Create the Extension Target in Xcode
-1. In Xcode, go to **File > New > Target...**
-2. Choose **Network Extension** and select **Packet Tunnel Provider**. Name it `tunnel`.
-3. In the project settings for the `tunnel` target, under **Signing & Capabilities**, add **App Groups** and **Network Extension** (check Packet Tunnel). Match the App Group ID with your main app.
-
-### 3. Link the Pre-Compiled Xray Core
-1. Locate `Xray.xcframework` in the `node_modules/react-native-nitro-xray-core/ios/` directory (or build it via the `go-core` script).
-2. Select your `tunnel` target, go to **General > Frameworks and Libraries**.
-3. Add `Xray.xcframework` and ensure it is set to **Embed & Sign**.
-4. Also add `NetworkExtension.framework` and `libresolv.tbd` (required for DNS).
-
-### 4. Critical Build Settings for the `tunnel` Target
-- **Deployment Target**: Ensure `IPHONEOS_DEPLOYMENT_TARGET` is set accurately (e.g., `15.1`). *If you set it to a future iOS version, iOS will refuse to launch the extension, flag it as "Needs Update", and kill the process with `SIGKILL`.*
-- **Memory Limit**: Network Extensions have a strict 15MB RAM limit on iOS. Our Go binary is tuned via `main_ios.go` (`debug.SetMemoryLimit(14MB)` and `GOGC=10`) to survive, but ensure **no React Native frameworks (like React.framework)** are accidentally linked to the `tunnel` target, or you will immediately crash on startup.
-- **Replace PacketTunnelProvider.swift**
-1. Replace yore ios/tunnel/PacketTunnelProvider.swift on example/ios/tunnel/PacketTunnelProvider.swift
-2. change identifiers
-```swift
-private let kAppGroup  = "group.com.xraycore.example"
-private let logger = Logger(subsystem: "com.xraycore.example.tunnel", category: "PacketTunnel")
-```
-- **Set Bridging Header**:  
-1. Select your `tunnel` target, go to **Build Settings > Filter** write `Bridging Header`.
-2. Set Debug and Release:  `$(SRCROOT)/tunnel/tunnel-Bridging-Header.h`
-
-
-### 5. Modify PacketTunnelProvider.swift
-Use the provided `HybridNitroXrayCore.swift` (main app) to negotiate permissions and launch the VPN. In your `tunnel` folder, edit `PacketTunnelProvider.swift` to invoke the C-bridge `StartXray(config, fd)` method. Xray will bind to the TUN interface automatically. 
-
-*(See the `example/ios/tunnel/PacketTunnelProvider.swift` in this repository for a complete production-ready implementation that falls back to `options` if App Groups fail for free Apple IDs).*
-
----
-
-## 🛠 Advanced (For Library Contributors)
-
-If you want to contribute to the package, edit the native code, or update the internal Go engine, read below.
-
-### 1. Local Setup
 ```bash
-# Clone the repository
-git clone https://github.com/yourname/react-native-nitro-xray-core.git
+git clone https://github.com/PopLocker714/react-native-nitro-xray-core.git
 cd react-native-nitro-xray-core
-
-# Install dependencies
 bun install
+bun run codegen            # regenerate Nitro native interfaces from the TS spec
 
-# Generate native Nitro interfaces from TypeScript
-bun run codegen
-```
-
-### 2. Running the Example App
-There is a built-in `example` app that helps you test your changes live:
-```bash
-cd example
-bun install
-
-# Run on Android Emulator
-bun run android
-```
-
-### 3. Updating the internal Xray-Core Engine
-
-This project uses Go Modules to automatically manage the `Xray-core` dependency without bloating the repository. The Go bridge code is located in the `go-core` directory.
-
-To update the Xray-core engine to the latest version and recompile the Android binaries (`.so`), run the following commands:
-
-```bash
-# Navigate to the Go bridge directory
+# rebuild the native engines (needs Go; Android needs ANDROID_NDK_HOME)
 cd go-core
-
-# 1. Download the latest version of Xray-core into go.mod
-go get github.com/xtls/xray-core@latest
-
-# 2. Recompile the native Android binaries (.so) for all architectures
-# (Make sure ANDROID_NDK_HOME is exported in your environment)
-./build_android.sh
+./build_android.sh         # arm64-v8a + armeabi-v7a → android/src/main/jniLibs
+./build_ios.sh             # Xray.xcframework (arm64 device + arm64 simulator)
 ```
 
-**Note:** The generated `.so` binaries for `arm64-v8a`, `armeabi-v7a`, `x86_64`, and `x86` will be placed in `android/src/main/jniLibs`. These pre-compiled files must be committed to Git and bundled with the NPM package so end-users don't need a Go installation.
+Run the example app: `cd example && bun install && bun run android` (or
+`scripts/ios-device.sh` for a signed device build).
 
----
+## Credits & acknowledgements
 
-## Contributing
+This library stands on the shoulders of excellent open-source work — huge thanks
+to their authors and communities:
 
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+- **[Xray-core](https://github.com/XTLS/Xray-core)** (XTLS) — the proxy engine at
+  the heart of this library.
+- **[olcrtc](https://github.com/openlibrecommunity/olcrtc)** (openlibrecommunity)
+  — the WebRTC side-channel that makes the bypass path possible.
+- **[Nitro Modules](https://github.com/mrousavy/nitro)** (Marc Rousavy) — the
+  native module framework this is built on.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Xray-core is MPL-2.0 and olcrtc is WTFPL; their
+respective licenses apply to the bundled/linked components.
