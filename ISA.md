@@ -163,7 +163,8 @@ The example app shows the subscription plan at a glance — used/total quota and
 - [x] ISC-112: `StartOlcrtc` in the NE returns rc=0 — WebRTC runtime comes up inside the iOS packet-tunnel process
 - [x] ISC-113: Measured RSS on iPhone 11 / iOS 18.4.1: xray baseline 40MB → olcrtc peak ~56.8MB, NO Jetsam kill. Old "15MB limit" was iOS 14-era; real limit ~50MB (iOS 15+). 48MB was disk size, not RSS.
 - [ ] ISC-114: [OPEN] Peak ~57MB is over the ~50MB budget — survived but risky under memory pressure. Needs optimization before production: trim xray `distro/all` to used protocols (biggest lever — baseline is mostly mapped code), tune GOGC/SetMemoryLimit, leaner WebRTC. See [[olcrtc-ios-merged-core-open-question]]
-- [ ] ISC-115: [DEFERRED] Full olcrtc-iOS wiring (Swift startOlcrtc real impl + dialerProxy chain) — gated on ISC-114 memory optimization
+- [x] ISC-115: Full olcrtc-iOS wired (device-verified 2026-07-06) — Swift startOlcrtc records the client config + resolves SOCKS port; startXray embeds it as a top-level `olcrtc` block; NE starts olcrtc (SOCKS-only) BEFORE xray, which dials through it via dialerProxy; stopTunnel stops both. JS API unchanged (startOlcrtc → connect). Works on iPhone. Shipped "as-is" at ~57MB (ISC-114 optimization still open).
+- [ ] ISC-116: [OPEN] olcrtc first-attempt reliability — WebRTC (wbstream TURN/ICE) sometimes doesn't come up within the 15s ready timeout (rc=-3), needs a retry; happens on both Android + iOS. Fix: auto-retry StartOlcrtc 2-3x before failing.
 
 > **Build-only verification note:** the c-shared links and exports the symbols; StartOlcrtc has NOT been exercised on a device (needs real carrier/room/key). ISC-81 gates real traffic.
 
