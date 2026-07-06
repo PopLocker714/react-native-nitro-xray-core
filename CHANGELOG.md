@@ -1,3 +1,9 @@
+## [1.1.1](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.1.0...v1.1.1) (2026-07-06)
+
+### 📚 Documentation
+
+* **readme:** document features + XrayClient API (subscriptions, stats, kill switch, olcrtc) ([d461a7b](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/d461a7b0ba16e98feb5d0e7a903b7a1540a2f936))
+
 ## [1.1.0](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.0.2...v1.1.0) (2026-07-06)
 
 ### ✨ Features
