@@ -165,7 +165,39 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             } else {
                 logger.info("Xray started successfully")
                 completionHandler(nil)
+                // --- EXPERIMENT: merged-core memory footprint in the NE ---
+                // If the config carries an "olcrtcMeasure" block, start olcrtc
+                // and log RSS so we can check it fits the ~50MB NE budget.
+                self.runOlcrtcMemoryExperiment(config: finalConfig)
             }
+        }
+    }
+
+    /// One-off: start olcrtc inside the NE and sample process RSS to verify the
+    /// merged xray+olcrtc runtime fits the iOS packet-tunnel memory budget.
+    private func runOlcrtcMemoryExperiment(config: String) {
+        guard
+            let data = config.data(using: .utf8),
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let m = obj["olcrtcMeasure"] as? [String: Any]
+        else { return }
+
+        func rssMB() -> Double { Double(CurrentRSSBytes()) / 1024.0 / 1024.0 }
+        NSLog("MEM: after xray = %.1f MB", rssMB())
+
+        DispatchQueue.global().async {
+            let olcrtcJson = (try? JSONSerialization.data(withJSONObject: m))
+                .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+            let rc = olcrtcJson.withCString { StartOlcrtc(UnsafeMutablePointer(mutating: $0)) }
+            NSLog("MEM: StartOlcrtc rc=%d", rc)
+            var peak = 0.0
+            for i in 0..<12 {
+                let r = rssMB()
+                if r > peak { peak = r }
+                NSLog("MEM: t+%ds rss=%.1f MB (peak %.1f)", i*2, r, peak)
+                Thread.sleep(forTimeInterval: 2)
+            }
+            NSLog("MEM: PEAK merged rss = %.1f MB (budget ~50MB)", peak)
         }
     }
 

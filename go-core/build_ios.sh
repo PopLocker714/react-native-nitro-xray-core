@@ -71,11 +71,13 @@ build_slice() {
   fi
 
   cd "$SCRIPT_DIR"
+  # -checklinkname=0: olcrtc pulls github.com/wlynxg/anet (via pion/webrtc),
+  # which //go:linkname's net.zoneCache — rejected by Go 1.23+ without this.
   go build \
     -tags ios \
     -trimpath \
     -buildmode=c-archive \
-    -ldflags="-s -w" \
+    -ldflags="-s -w -checklinkname=0" \
     -o "$OUT_DIR/libxray.a" \
     ./libxray
 

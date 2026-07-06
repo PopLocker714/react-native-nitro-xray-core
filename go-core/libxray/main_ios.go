@@ -27,9 +27,11 @@ import (
 var runningServer core.Server
 
 func init() {
-	// Strictly limiting to 14MB to avoid iOS Jetsam kills for Network Extensions
-	debug.SetMemoryLimit(14 * 1024 * 1024)
-	
+	// iOS 15+ raised the packet-tunnel NE memory limit to ~50MB (was 15MB on
+	// iOS 14). Target 45MB — leaves Jetsam headroom while giving the merged
+	// xray+olcrtc runtime room. Go treats this as a soft GC target.
+	debug.SetMemoryLimit(45 * 1024 * 1024)
+
 	// Aggressive GC
 	os.Setenv("GOGC", "10")
 	
