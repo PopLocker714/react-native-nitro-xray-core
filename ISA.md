@@ -153,7 +153,12 @@ The example app shows the subscription plan at a glance — used/total quota and
 - [x] ISC-104: `getStats()` app↔NE bridge via `sendProviderMessage`/`handleAppMessage` ({cmd:stats/version}) — real counters from the NE process
 - [x] ISC-105: `setKillSwitch()` real impl — `NEOnDemandRule` + `includeAllNetworks` (fail-closed), persisted in UserDefaults, re-applied on every profile write; replaces the throw-stub
 - [x] ISC-106: Signed device build (team 4548L5D8WL, automatic signing, App Group + Network Extension) installed on iPhone 11 and VERIFIED on-device: connect, live stats, kill switch, state events all work
-- [ ] ISC-107: [DEFERRED] iOS Phase 2 hardening — Keychain for config secrets (vs App Group plist), configurable DNS in NE (currently hardcoded 1.1.1.1/8.8.8.8), robust `tunnelFileDescriptor` (0..256 scan is fragile)
+### iOS Phase 2 — hardening (device-verified 2026-07-06)
+- [x] ISC-107: Config secrets → Keychain (shared access group, encrypted, device-bound `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) replacing the cleartext App Group plist; App Group kept as graceful fallback; team prefix resolved at runtime
+- [x] ISC-108: NE DNS configurable — derived from the Xray config's `dns.servers` (valid IPs only), neutral fallback; replaces hardcoded 1.1.1.1/8.8.8.8
+- [x] ISC-109: Robust `tunnelFileDescriptor` — returns the highest utun fd (our tunnel is newest) instead of first match; KVC fallback kept
+- [x] ISC-110: `keychain-access-groups` entitlement added to app + NE; signed Release build (JS embedded, standalone) installed + verified on iPhone
+- [ ] ISC-111: [DEFERRED] iOS Phase 3 — olcrtc merged core: needs `olcrtc_ios.go` + resolve the 48 MB lib vs NE ~15 MB Jetsam limit (hard open question — see [[olcrtc-ios-merged-core-open-question]])
 
 > **Build-only verification note:** the c-shared links and exports the symbols; StartOlcrtc has NOT been exercised on a device (needs real carrier/room/key). ISC-81 gates real traffic.
 
