@@ -1,3 +1,9 @@
+## [1.1.2](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.1.1...v1.1.2) (2026-07-06)
+
+### 📚 Documentation
+
+* rewrite README (Xray + olcrtc explained, examples, credits) + rich keywords ([f2cc62e](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/f2cc62e623453a9daa4624c3d491cacfc01b5401))
+
 ## [1.1.1](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.1.0...v1.1.1) (2026-07-06)
 
 ### 📚 Documentation
