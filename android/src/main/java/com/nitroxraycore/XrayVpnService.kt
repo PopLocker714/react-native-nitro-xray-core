@@ -218,6 +218,14 @@ class XrayVpnService : VpnService() {
             Log.w(TAG, "Error closing VPN interface", e)
         }
         vpnInterface = null
+        // Explicitly leave foreground and REMOVE the persistent notification.
+        // stopSelf() alone can leave it (and its lock icon) lingering in the
+        // status bar on some Android versions, which reads as "VPN still on".
+        try {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error clearing foreground state", e)
+        }
         Log.i(TAG, "VPN stopped")
     }
 
