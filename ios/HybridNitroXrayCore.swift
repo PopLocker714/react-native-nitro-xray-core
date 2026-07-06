@@ -44,11 +44,34 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
     }
 
     // MARK: - getStats
-    // Real counters live in the NE process (QueryStats). Plumbed via
-    // sendProviderMessage in the stats pass; zeros until then.
+    // The engine runs in the NE process, so query it over the provider message
+    // channel: the app sends {"cmd":"stats","tag":...}; the extension replies
+    // with {"uplink":N,"downlink":N}. Resolves to zeros when not connected.
 
     func getStats(outboundTag: String) throws -> Promise<TrafficStats> {
-        return Promise.resolved(withResult: TrafficStats(uplink: 0, downlink: 0))
+        let promise = Promise<TrafficStats>()
+        guard let session = manager?.connection as? NETunnelProviderSession,
+              session.status == .connected,
+              let data = try? JSONSerialization.data(withJSONObject: ["cmd": "stats", "tag": outboundTag])
+        else {
+            promise.resolve(withResult: TrafficStats(uplink: 0, downlink: 0))
+            return promise
+        }
+        do {
+            try session.sendProviderMessage(data) { resp in
+                var up = 0.0
+                var down = 0.0
+                if let resp = resp,
+                   let obj = try? JSONSerialization.jsonObject(with: resp) as? [String: Any] {
+                    up = (obj["uplink"] as? NSNumber)?.doubleValue ?? 0
+                    down = (obj["downlink"] as? NSNumber)?.doubleValue ?? 0
+                }
+                promise.resolve(withResult: TrafficStats(uplink: up, downlink: down))
+            }
+        } catch {
+            promise.resolve(withResult: TrafficStats(uplink: 0, downlink: 0))
+        }
+        return promise
     }
 
     // MARK: - onStateChange
@@ -214,20 +237,52 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
     }
 
     // MARK: - Kill switch (iOS: second pass — see docs/IMPLEMENTATION_PLAN.md)
-    // The real iOS mechanism is NEOnDemandRule + includeAllNetworks on the
-    // tunnel profile; stubbed until the iOS hardening pass.
+    // iOS kill switch: on-demand keeps the VPN "always on" (reconnects), and
+    // includeAllNetworks blocks traffic that would otherwise bypass the tunnel
+    // while it's down — the fail-closed behavior. Persisted in UserDefaults and
+    // written onto the tunnel profile. Note: enabling this shows the system VPN
+    // save prompt on first apply, and the OS enforces it (unlike Android's
+    // app-level hold). Takes effect on the next connect.
+
+    private static let kKillSwitchKey = "xray_kill_switch"
 
     func setKillSwitch(enabled: Bool) throws -> Promise<Void> {
+        UserDefaults.standard.set(enabled, forKey: Self.kKillSwitchKey)
         let promise = Promise<Void>()
-        promise.reject(withError: NSError(
-            domain: "XrayCore", code: -100,
-            userInfo: [NSLocalizedDescriptionKey:
-                "setKillSwitch is not implemented on iOS yet (planned: NEOnDemandRule + includeAllNetworks)"]))
+        self.loadOrCreateManager { result in
+            switch result {
+            case .failure(let error):
+                promise.reject(withError: error)
+            case .success(let mgr):
+                if enabled {
+                    let rule = NEOnDemandRuleConnect()
+                    rule.interfaceTypeMatch = .any
+                    mgr.onDemandRules = [rule]
+                    mgr.isOnDemandEnabled = true
+                } else {
+                    mgr.onDemandRules = []
+                    mgr.isOnDemandEnabled = false
+                }
+                if let proto = mgr.protocolConfiguration as? NETunnelProviderProtocol {
+                    proto.includeAllNetworks = enabled
+                    proto.excludeLocalNetworks = true
+                }
+                mgr.isEnabled = true
+                self.manager = mgr
+                mgr.saveToPreferences { error in
+                    if let error = error {
+                        promise.reject(withError: error)
+                    } else {
+                        promise.resolve()
+                    }
+                }
+            }
+        }
         return promise
     }
 
     func isKillSwitchEnabled() throws -> Bool {
-        return false
+        return UserDefaults.standard.bool(forKey: Self.kKillSwitchKey)
     }
 
     // MARK: - olcrtc (iOS: second pass — see docs/IMPLEMENTATION_PLAN.md)
@@ -283,9 +338,24 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
             // Pass App Group so Extension can read config
             proto.providerConfiguration = ["appGroup": kAppGroup]
 
+            // Re-apply the persisted kill-switch setting on every profile write,
+            // otherwise rebuilding proto here would drop includeAllNetworks.
+            let killSwitch = UserDefaults.standard.bool(forKey: Self.kKillSwitchKey)
+            proto.includeAllNetworks = killSwitch
+            proto.excludeLocalNetworks = true
+
             mgr.protocolConfiguration = proto
             mgr.localizedDescription = "Xray VPN"
             mgr.isEnabled = true
+            if killSwitch {
+                let rule = NEOnDemandRuleConnect()
+                rule.interfaceTypeMatch = .any
+                mgr.onDemandRules = [rule]
+                mgr.isOnDemandEnabled = true
+            } else {
+                mgr.onDemandRules = []
+                mgr.isOnDemandEnabled = false
+            }
 
             completion(.success(mgr))
         }

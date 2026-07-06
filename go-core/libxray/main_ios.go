@@ -18,6 +18,8 @@ import (
 	"unsafe"
 
 	"github.com/xtls/xray-core/core"
+	"github.com/xtls/xray-core/features/stats"
+
 	// Import all features just like Android so routing and inbounds work
 	_ "github.com/xtls/xray-core/main/distro/all"
 )
@@ -110,6 +112,44 @@ func GetVersion() *C.char {
 //export FreeString
 func FreeString(s *C.char) {
 	C.free(unsafe.Pointer(s))
+}
+
+// QueryStats returns cumulative uplink/downlink byte counters for the given
+// outbound tag as JSON: {"uplink":<int64>,"downlink":<int64>}. Zeros if the
+// server is not running or stats are not enabled. Free the result with
+// FreeString. Mirrors the Android export so getStats() works over the NE.
+//export QueryStats
+func QueryStats(outboundTag *C.char) *C.char {
+	up, down := queryOutboundTraffic(C.GoString(outboundTag))
+	return C.CString(fmt.Sprintf(`{"uplink":%d,"downlink":%d}`, up, down))
+}
+
+func queryOutboundTraffic(tag string) (int64, int64) {
+	if runningServer == nil || tag == "" {
+		return 0, 0
+	}
+	inst, ok := runningServer.(*core.Instance)
+	if !ok {
+		return 0, 0
+	}
+	feature := inst.GetFeature(stats.ManagerType())
+	if feature == nil {
+		return 0, 0
+	}
+	manager, ok := feature.(stats.Manager)
+	if !ok {
+		return 0, 0
+	}
+	return counterValue(manager, "outbound>>>"+tag+">>>traffic>>>uplink"),
+		counterValue(manager, "outbound>>>"+tag+">>>traffic>>>downlink")
+}
+
+func counterValue(m stats.Manager, name string) int64 {
+	c := m.GetCounter(name)
+	if c == nil {
+		return 0
+	}
+	return c.Value()
 }
 
 func main() {}

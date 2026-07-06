@@ -131,10 +131,37 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
     override func handleAppMessage(_ messageData: Data,
                                    completionHandler: ((Data?) -> Void)?) {
-        if let msg = String(data: messageData, encoding: .utf8) {
-            logger.info("handleAppMessage: \(msg)")
+        guard
+            let obj = try? JSONSerialization.jsonObject(with: messageData) as? [String: Any],
+            let cmd = obj["cmd"] as? String
+        else {
+            completionHandler?(nil)
+            return
         }
-        completionHandler?(messageData)
+
+        switch cmd {
+        case "stats":
+            // {"cmd":"stats","tag":"proxy"} -> {"uplink":N,"downlink":N}
+            let tag = (obj["tag"] as? String) ?? "proxy"
+            let json = tag.withCString { QueryStats(UnsafeMutablePointer(mutating: $0)) }
+            if let json = json {
+                let data = Data(String(cString: json).utf8)
+                FreeString(json)
+                completionHandler?(data)
+            } else {
+                completionHandler?(nil)
+            }
+        case "version":
+            if let v = GetVersion() {
+                let data = Data(String(cString: v).utf8)
+                FreeString(v)
+                completionHandler?(data)
+            } else {
+                completionHandler?(nil)
+            }
+        default:
+            completionHandler?(nil)
+        }
     }
 
     // MARK: - Sleep / Wake
