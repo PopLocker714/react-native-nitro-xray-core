@@ -119,4 +119,12 @@ export interface NitroXrayCore extends HybridObject<{ ios: 'swift', android: 'ko
    * iOS: no-op (the system manages the VPN status UI).
    */
   setNotificationConfig(config: NotificationConfig): void
+
+  /**
+   * Set the VPN display name shown in iOS Settings → VPN (the profile's
+   * `localizedDescription` / `serverAddress`) — for branding. Persisted and
+   * applied to the tunnel profile on the next connect. Default "Xray VPN".
+   * Android: no-op (the system uses the app label there).
+   */
+  setVpnName(name: string): void
 }

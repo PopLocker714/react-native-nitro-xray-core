@@ -296,6 +296,15 @@ export const XrayClient = {
     NitroXrayCore.setNotificationConfig(config)
   },
 
+  /**
+   * Set the VPN display name shown in iOS Settings → VPN (branding). Persisted;
+   * applied on the next connect (and refreshed immediately if a profile exists).
+   * Android: no-op — the system shows the app label. Default "Xray VPN".
+   */
+  setVpnName(name: string): void {
+    NitroXrayCore.setVpnName(name)
+  },
+
   /** Ensure the app has VPN permission, requesting it if needed. */
   async ensurePermission(): Promise<void> {
     const has = await NitroXrayCore.hasVpnPermission()

@@ -28,7 +28,13 @@ private let kConfigKey = "xray_config_json"
 enum XrayKeychain {
     // Suffix of the shared keychain-access-group (see both .entitlements files).
     // The team prefix is resolved at runtime so the library isn't tied to a team.
-    private static let accessGroupSuffix = "com.xraycore.example.shared"
+    // Derived from the app's bundle id (like kAppGroup) so consumers aren't tied
+    // to the example's identifier. The resolved group is passed to the extension
+    // via providerConfiguration["keychainGroup"], so app and extension always
+    // agree without the extension having to guess the app's bundle id (its own
+    // is <app>.tunnel). Both targets must still list this group in their
+    // keychain-access-groups entitlement: $(AppIdentifierPrefix)<bundleid>.shared
+    private static let accessGroupSuffix = (Bundle.main.bundleIdentifier ?? "app") + ".shared"
     private static let account = "xray_config_json"
     private static let service = "com.xraycore.vpn"
 
@@ -339,6 +345,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
     // app-level hold). Takes effect on the next connect.
 
     private static let kKillSwitchKey = "xray_kill_switch"
+    private static let kVpnNameKey = "xray_vpn_name"
 
     func setKillSwitch(enabled: Bool) throws -> Promise<Void> {
         UserDefaults.standard.set(enabled, forKey: Self.kKillSwitchKey)
@@ -442,6 +449,23 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         // no-op
     }
 
+    // Branding: the name shown in iOS Settings → VPN. Persisted; applied to the
+    // profile on the next connect. If a profile already exists, also refresh it
+    // now so the rename shows without waiting for a reconnect.
+    func setVpnName(name: String) throws {
+        let trimmed = name.isEmpty ? "Xray VPN" : name
+        UserDefaults.standard.set(trimmed, forKey: Self.kVpnNameKey)
+        NETunnelProviderManager.loadAllFromPreferences { [weak self] managers, _ in
+            guard let mgr = managers?.first(where: {
+                ($0.protocolConfiguration as? NETunnelProviderProtocol)?.providerBundleIdentifier == kTunnelBundleID
+            }) else { return }
+            mgr.localizedDescription = trimmed
+            (mgr.protocolConfiguration as? NETunnelProviderProtocol)?.serverAddress = trimmed
+            mgr.saveToPreferences(completionHandler: nil)
+            self?.manager = mgr
+        }
+    }
+
     // MARK: - Private helpers
 
     private func loadOrCreateManager(completion: @escaping (Result<NETunnelProviderManager, Error>) -> Void) {
@@ -458,11 +482,17 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
 
             let mgr = existing ?? NETunnelProviderManager()
 
+            let vpnName = UserDefaults.standard.string(forKey: Self.kVpnNameKey) ?? "Xray VPN"
+
             let proto = NETunnelProviderProtocol()
             proto.providerBundleIdentifier = kTunnelBundleID
-            proto.serverAddress = "Xray VPN"   // Shown in iOS Settings → VPN
-            // Pass App Group so Extension can read config
-            proto.providerConfiguration = ["appGroup": kAppGroup]
+            proto.serverAddress = vpnName   // Shown in iOS Settings → VPN
+            // Pass the App Group + resolved keychain group so the Extension reads
+            // config from the exact same places, without hardcoding identifiers.
+            proto.providerConfiguration = [
+                "appGroup": kAppGroup,
+                "keychainGroup": XrayKeychain.resolveAccessGroup() ?? "",
+            ]
 
             // Re-apply the persisted kill-switch setting on every profile write,
             // otherwise rebuilding proto here would drop includeAllNetworks.
@@ -471,7 +501,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
             proto.excludeLocalNetworks = true
 
             mgr.protocolConfiguration = proto
-            mgr.localizedDescription = "Xray VPN"
+            mgr.localizedDescription = vpnName
             mgr.isEnabled = true
             if killSwitch {
                 let rule = NEOnDemandRuleConnect()

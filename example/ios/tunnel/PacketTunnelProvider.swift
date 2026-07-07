@@ -21,42 +21,16 @@ import os.log
 private let kAppGroup  = "group.com.xraycore.example"
 private let kConfigKey = "xray_config_json"
 
-// Encrypted config read shared with the app via a Keychain access group.
-// Mirrors XrayKeychain in HybridNitroXrayCore.swift (the NE target can't link
-// the library pod, so the read side is duplicated here).
+// Encrypted config read shared with the app via a Keychain access group. The
+// group is passed from the app through providerConfiguration["keychainGroup"],
+// so the extension hardcodes no identifier and always matches the app.
+// (The service constant only has to match the app's XrayKeychain.service.)
 private enum XrayKeychain {
-    private static let accessGroupSuffix = "com.xraycore.example.shared"
     private static let account = "xray_config_json"
     private static let service = "com.xraycore.vpn"
 
-    private static func resolveAccessGroup() -> String? {
-        let probe: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: "xray_seed_probe",
-            kSecAttrService as String: service,
-            kSecReturnAttributes as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var result: AnyObject?
-        var status = SecItemCopyMatching(probe as CFDictionary, &result)
-        if status == errSecItemNotFound {
-            var add = probe
-            add.removeValue(forKey: kSecReturnAttributes as String)
-            add.removeValue(forKey: kSecMatchLimit as String)
-            add[kSecValueData as String] = Data()
-            SecItemAdd(add as CFDictionary, nil)
-            status = SecItemCopyMatching(probe as CFDictionary, &result)
-        }
-        guard status == errSecSuccess,
-              let attrs = result as? [String: Any],
-              let group = attrs[kSecAttrAccessGroup as String] as? String,
-              let prefix = group.components(separatedBy: ".").first
-        else { return nil }
-        return "\(prefix).\(accessGroupSuffix)"
-    }
-
-    static func load() -> String? {
-        guard let group = resolveAccessGroup() else { return nil }
+    static func load(group: String) -> String? {
+        guard !group.isEmpty else { return nil }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: account,
@@ -83,15 +57,21 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                               completionHandler: @escaping (Error?) -> Void) {
         logger.info("startTunnel called")
 
+        // The app passes the shared App Group + Keychain group via
+        // providerConfiguration, so nothing here hardcodes an app identifier.
+        let providerConf = (self.protocolConfiguration as? NETunnelProviderProtocol)?.providerConfiguration
+        let keychainGroup = (providerConf?["keychainGroup"] as? String) ?? ""
+        let appGroup = (providerConf?["appGroup"] as? String) ?? kAppGroup
+
         // Config source priority: startVPNTunnel options (in-memory, most
         // direct) → encrypted Keychain (on-demand cold start) → App Group
         // (legacy fallback).
         var configJson: String? = options?["config"] as? String
         if configJson == nil {
-            configJson = XrayKeychain.load()
+            configJson = XrayKeychain.load(group: keychainGroup)
             if configJson != nil { logger.info("Config loaded from Keychain.") }
         }
-        if configJson == nil, let defaults = UserDefaults(suiteName: kAppGroup) {
+        if configJson == nil, let defaults = UserDefaults(suiteName: appGroup) {
             configJson = defaults.string(forKey: kConfigKey)
             if configJson != nil { logger.info("Config loaded from App Group (fallback).") }
         }

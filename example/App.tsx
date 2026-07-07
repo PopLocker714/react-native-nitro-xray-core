@@ -143,6 +143,12 @@ function App(): React.JSX.Element {
 		} catch {
 			// not supported on this platform yet
 		}
+		// Brand name shown in iOS Settings → VPN (swap for your brand).
+		try {
+			XrayClient.setVpnName("Nitro VPN");
+		} catch {
+			// no-op on Android
+		}
 		// Configurable foreground-notification text (swap for translated strings).
 		try {
 			XrayClient.setNotificationConfig({

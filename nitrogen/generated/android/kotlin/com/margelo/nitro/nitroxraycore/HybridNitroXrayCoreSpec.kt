@@ -97,6 +97,10 @@ abstract class HybridNitroXrayCoreSpec: HybridObject() {
   @DoNotStrip
   @Keep
   abstract fun setNotificationConfig(config: NotificationConfig): Unit
+  
+  @DoNotStrip
+  @Keep
+  abstract fun setVpnName(name: String): Unit
 
   // Default implementation of `HybridObject.toString()`
   override fun toString(): String {

@@ -29,6 +29,7 @@ public protocol HybridNitroXrayCoreSpec_protocol: HybridObject {
   func getOlcrtcSocksPort() throws -> Double
   func isOlcrtcRunning() throws -> Bool
   func setNotificationConfig(config: NotificationConfig) throws -> Void
+  func setVpnName(name: String) throws -> Void
 }
 
 public extension HybridNitroXrayCoreSpec_protocol {

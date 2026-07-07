@@ -229,5 +229,9 @@ namespace margelo::nitro::nitroxraycore {
     static const auto method = _javaPart->javaClassStatic()->getMethod<void(jni::alias_ref<JNotificationConfig> /* config */)>("setNotificationConfig");
     method(_javaPart, JNotificationConfig::fromCpp(config));
   }
+  void JHybridNitroXrayCoreSpec::setVpnName(const std::string& name) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void(jni::alias_ref<jni::JString> /* name */)>("setVpnName");
+    method(_javaPart, jni::make_jstring(name));
+  }
 
 } // namespace margelo::nitro::nitroxraycore

@@ -198,6 +198,12 @@ namespace margelo::nitro::nitroxraycore {
         std::rethrow_exception(__result.error());
       }
     }
+    inline void setVpnName(const std::string& name) override {
+      auto __result = _swiftPart.setVpnName(name);
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+    }
 
   private:
     NitroXrayCore::HybridNitroXrayCoreSpec_cxx _swiftPart;

@@ -236,4 +236,10 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
             config.channelName,
         )
     }
+
+    // iOS-only concept (the VPN name in iOS Settings). On Android the system
+    // shows the app label, so there's nothing to set — no-op.
+    override fun setVpnName(name: String) {
+        // no-op on Android
+    }
 }
