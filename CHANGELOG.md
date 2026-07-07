@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.1.2...v1.2.0) (2026-07-07)
+
+### ✨ Features
+
+* **ios:** configurable VPN name + derive keychain group from bundle id ([6f0751e](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/6f0751e26d106c16d71ae9ec10f8b9a93593cae3))
+
 ## [1.1.2](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.1.1...v1.1.2) (2026-07-06)
 
 ### 📚 Documentation
