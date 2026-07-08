@@ -31,6 +31,8 @@ namespace margelo::nitro::nitroxraycore {
       prototype.registerHybridMethod("isOlcrtcRunning", &HybridNitroXrayCoreSpec::isOlcrtcRunning);
       prototype.registerHybridMethod("setNotificationConfig", &HybridNitroXrayCoreSpec::setNotificationConfig);
       prototype.registerHybridMethod("setVpnName", &HybridNitroXrayCoreSpec::setVpnName);
+      prototype.registerHybridMethod("setConnectionInfo", &HybridNitroXrayCoreSpec::setConnectionInfo);
+      prototype.registerHybridMethod("getConnectionInfo", &HybridNitroXrayCoreSpec::getConnectionInfo);
     });
   }
 

@@ -127,4 +127,15 @@ export interface NitroXrayCore extends HybridObject<{ ios: 'swift', android: 'ko
    * Android: no-op (the system uses the app label there).
    */
   setVpnName(name: string): void
+
+  /**
+   * Persist a JSON blob describing the current connection (server, protocol,
+   * olcrtc params, mode). Set by the JS client on connect, cleared on disconnect.
+   * Survives an app restart so the UI can show what's connected even when the
+   * tunnel was brought up by on-demand while the app was closed. Empty = none.
+   */
+  setConnectionInfo(json: string): void
+
+  /** The JSON blob last stored via {@link setConnectionInfo}, or "" if none. */
+  getConnectionInfo(): string
 }

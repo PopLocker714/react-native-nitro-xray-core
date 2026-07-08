@@ -33,6 +33,45 @@ export interface SubscriptionResult {
   info: SubscriptionInfo | null
 }
 
+/** What the tunnel is currently connected to — see {@link XrayClient.currentConnection}. */
+export interface ConnectionInfo {
+  /** direct VLESS/…; olcrtc-chained (server dialed through olcrtc); olcrtc-only. */
+  mode: 'direct' | 'olcrtc-chained' | 'olcrtc-only'
+  /** The proxy server (absent for olcrtc-only). */
+  server?: { tag: string; address: string; port: number; protocol: string }
+  /** The olcrtc side-channel params (present for olcrtc-chained / olcrtc-only). */
+  olcrtc?: { carrier: string; roomId: string; transport: string }
+}
+
+// The olcrtc client config armed via startOlcrtc(), so connect()/connectOlcrtcOnly()
+// can record the side-channel params into the persisted connection info.
+let armedOlcrtc: OlcrtcClientConfig | null = null
+
+function olcrtcMeta(): ConnectionInfo['olcrtc'] | undefined {
+  if (!armedOlcrtc) return undefined
+  return {
+    carrier: armedOlcrtc.carrier,
+    roomId: armedOlcrtc.roomId,
+    transport: armedOlcrtc.transport ?? 'vp8channel',
+  }
+}
+
+function persistConnectionInfo(info: ConnectionInfo): void {
+  try {
+    NitroXrayCore.setConnectionInfo(JSON.stringify(info))
+  } catch {
+    // best-effort — connection info is informational only
+  }
+}
+
+function clearConnectionInfo(): void {
+  try {
+    NitroXrayCore.setConnectionInfo('')
+  } catch {
+    // best-effort
+  }
+}
+
 // Session-continuous traffic accounting per outbound tag. Raw engine counters
 // reset whenever the engine restarts (e.g. server switch); these sessions fold
 // each engine generation into a baseline so totals only grow mid-session.
@@ -196,6 +235,16 @@ export const XrayClient = {
       ensureSessionStateHook()
       if (!NitroXrayCore.isVpnConnected()) resetTrafficSessions()
       const config = buildXrayConfig(server, options)
+      persistConnectionInfo({
+        mode: options?.olcrtc ? 'olcrtc-chained' : 'direct',
+        server: {
+          tag: server.tag,
+          address: server.address,
+          port: server.port,
+          protocol: server.protocol,
+        },
+        olcrtc: options?.olcrtc ? olcrtcMeta() : undefined,
+      })
       await NitroXrayCore.startXray(JSON.stringify(config))
     })
   },
@@ -205,6 +254,9 @@ export const XrayClient = {
     return withLock(async () => {
       ensureSessionStateHook()
       if (!NitroXrayCore.isVpnConnected()) resetTrafficSessions()
+      // Raw JSON has no structured metadata to record; clear any stale info so
+      // currentConnection() doesn't report a previous connection.
+      clearConnectionInfo()
       await NitroXrayCore.startXray(configJson)
     })
   },
@@ -224,12 +276,30 @@ export const XrayClient = {
       }
       await NitroXrayCore.stopXray()
       resetTrafficSessions()
+      clearConnectionInfo()
     })
   },
 
   /** Synchronous best-effort connection flag. */
   isConnected(): boolean {
     return NitroXrayCore.isVpnConnected()
+  },
+
+  /**
+   * What the tunnel is currently connected to — server, protocol, mode, and
+   * olcrtc params. Persisted natively, so it's correct even on a fresh app
+   * launch when the tunnel was brought up by on-demand while the app was closed.
+   * Returns null if nothing is connected (or the info was never recorded, e.g.
+   * a raw `startRaw` connection). Pair with {@link isConnected} for live state.
+   */
+  currentConnection(): ConnectionInfo | null {
+    const raw = NitroXrayCore.getConnectionInfo()
+    if (!raw) return null
+    try {
+      return JSON.parse(raw) as ConnectionInfo
+    } catch {
+      return null
+    }
   },
 
   /**
@@ -312,11 +382,13 @@ export const XrayClient = {
    * "the side-channel is up".
    */
   async startOlcrtc(config: OlcrtcClientConfig): Promise<void> {
+    armedOlcrtc = config
     return withLock(() => NitroXrayCore.startOlcrtc(JSON.stringify(config)))
   },
 
   /** Stop the olcrtc client and release its SOCKS5 listener. */
   async stopOlcrtc(): Promise<void> {
+    armedOlcrtc = null
     return withLock(() => NitroXrayCore.stopOlcrtc())
   },
 
@@ -337,6 +409,7 @@ export const XrayClient = {
       ensureSessionStateHook()
       if (!NitroXrayCore.isVpnConnected()) resetTrafficSessions()
       const config = buildOlcrtcTunnelConfig({ socksPort, ...options })
+      persistConnectionInfo({ mode: 'olcrtc-only', olcrtc: olcrtcMeta() })
       await NitroXrayCore.startXray(JSON.stringify(config))
     })
   },

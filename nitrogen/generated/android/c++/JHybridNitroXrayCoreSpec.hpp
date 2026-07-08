@@ -71,6 +71,8 @@ namespace margelo::nitro::nitroxraycore {
     bool isOlcrtcRunning() override;
     void setNotificationConfig(const NotificationConfig& config) override;
     void setVpnName(const std::string& name) override;
+    void setConnectionInfo(const std::string& json) override;
+    std::string getConnectionInfo() override;
 
   private:
     jni::global_ref<JHybridNitroXrayCoreSpec::JavaPart> _javaPart;

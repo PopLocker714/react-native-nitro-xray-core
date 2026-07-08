@@ -242,4 +242,18 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
     override fun setVpnName(name: String) {
         // no-op on Android
     }
+
+    override fun setConnectionInfo(json: String) {
+        val context = NitroModules.applicationContext ?: return
+        val prefs = context.getSharedPreferences("nitro_xray_core", android.content.Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            if (json.isEmpty()) remove("connection_info") else putString("connection_info", json)
+        }.apply()
+    }
+
+    override fun getConnectionInfo(): String {
+        val context = NitroModules.applicationContext ?: return ""
+        val prefs = context.getSharedPreferences("nitro_xray_core", android.content.Context.MODE_PRIVATE)
+        return prefs.getString("connection_info", "") ?: ""
+    }
 }

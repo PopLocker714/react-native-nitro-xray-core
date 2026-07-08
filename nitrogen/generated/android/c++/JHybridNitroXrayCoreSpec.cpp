@@ -233,5 +233,14 @@ namespace margelo::nitro::nitroxraycore {
     static const auto method = _javaPart->javaClassStatic()->getMethod<void(jni::alias_ref<jni::JString> /* name */)>("setVpnName");
     method(_javaPart, jni::make_jstring(name));
   }
+  void JHybridNitroXrayCoreSpec::setConnectionInfo(const std::string& json) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void(jni::alias_ref<jni::JString> /* json */)>("setConnectionInfo");
+    method(_javaPart, jni::make_jstring(json));
+  }
+  std::string JHybridNitroXrayCoreSpec::getConnectionInfo() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<jni::JString>()>("getConnectionInfo");
+    auto __result = method(_javaPart);
+    return __result->toStdString();
+  }
 
 } // namespace margelo::nitro::nitroxraycore

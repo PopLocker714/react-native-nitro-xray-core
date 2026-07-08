@@ -4,7 +4,7 @@ export type { StateListener } from './native'
 
 // High-level client (recommended entry point)
 export { XrayClient } from './client'
-export type { ConnectOptions, SubscriptionResult } from './client'
+export type { ConnectOptions, SubscriptionResult, ConnectionInfo } from './client'
 
 // Subscription parsing
 export {

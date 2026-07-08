@@ -204,6 +204,20 @@ namespace margelo::nitro::nitroxraycore {
         std::rethrow_exception(__result.error());
       }
     }
+    inline void setConnectionInfo(const std::string& json) override {
+      auto __result = _swiftPart.setConnectionInfo(json);
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+    }
+    inline std::string getConnectionInfo() override {
+      auto __result = _swiftPart.getConnectionInfo();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
 
   private:
     NitroXrayCore::HybridNitroXrayCoreSpec_cxx _swiftPart;

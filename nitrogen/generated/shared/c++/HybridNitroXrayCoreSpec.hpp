@@ -72,6 +72,8 @@ namespace margelo::nitro::nitroxraycore {
       virtual bool isOlcrtcRunning() = 0;
       virtual void setNotificationConfig(const NotificationConfig& config) = 0;
       virtual void setVpnName(const std::string& name) = 0;
+      virtual void setConnectionInfo(const std::string& json) = 0;
+      virtual std::string getConnectionInfo() = 0;
 
     protected:
       // Hybrid Setup

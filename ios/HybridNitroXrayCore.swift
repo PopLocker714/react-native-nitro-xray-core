@@ -577,6 +577,20 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         // no-op
     }
 
+    private static let kConnectionInfoKey = "xray_connection_info"
+
+    func setConnectionInfo(json: String) throws {
+        if json.isEmpty {
+            UserDefaults.standard.removeObject(forKey: Self.kConnectionInfoKey)
+        } else {
+            UserDefaults.standard.set(json, forKey: Self.kConnectionInfoKey)
+        }
+    }
+
+    func getConnectionInfo() throws -> String {
+        return UserDefaults.standard.string(forKey: Self.kConnectionInfoKey) ?? ""
+    }
+
     // Branding: the name shown in iOS Settings → VPN. Persisted; applied to the
     // profile on the next connect. If a profile already exists, also refresh it
     // now so the rename shows without waiting for a reconnect.

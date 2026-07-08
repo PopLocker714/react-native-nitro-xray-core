@@ -82,6 +82,9 @@ function App(): React.JSX.Element {
 	const [proxyStatus, setProxyStatus] = useState<
 		"connecting" | "ready" | "failed" | null
 	>(null);
+	const [conn, setConn] = useState<ReturnType<
+		typeof XrayClient.currentConnection
+	> | null>(null);
 	const [stats, setStats] = useState<{ up: number; down: number }>({
 		up: 0,
 		down: 0,
@@ -167,9 +170,15 @@ function App(): React.JSX.Element {
 		XrayClient.requestNotificationPermission()
 			.then((granted) => addLog(`Notification permission: ${granted ? "granted" : "denied"}`))
 			.catch((e: unknown) => addLog(`Notification permission error: ${errStr(e)}`));
+		// On launch, reflect a tunnel that on-demand may have already brought up.
+		if (XrayClient.isConnected()) {
+			setState("connected");
+			setConn(XrayClient.currentConnection());
+		}
 		const unsubscribe = XrayClient.onState((s, message) => {
 			setState(s);
 			addLog(`state → ${s}${message ? ` (${message})` : ""}`);
+			if (s === "connected") setConn(XrayClient.currentConnection());
 			// olcrtc readiness rides in the message on iOS: proxy-connecting →
 			// proxy-ready → (traffic flows). 'connected' alone doesn't mean the
 			// bypass can carry traffic yet.
@@ -189,6 +198,7 @@ function App(): React.JSX.Element {
 				setActiveTag(null);
 				setStats({ up: 0, down: 0 });
 				setProxyStatus(null);
+				setConn(null);
 			}
 		});
 		return unsubscribe;
@@ -360,6 +370,16 @@ function App(): React.JSX.Element {
 				↑ {formatBytes(stats.up)}   ↓ {formatBytes(stats.down)}
 			</Text>
 			<Text style={styles.speed}>▼ {formatBytes(downRate)}/s</Text>
+			{conn && (
+				<Text style={styles.status}>
+					{conn.mode === "olcrtc-only"
+						? "olcrtc-only"
+						: conn.server
+							? `${conn.server.protocol.toUpperCase()} · ${conn.server.tag}`
+							: conn.mode}
+					{conn.olcrtc ? ` · olcrtc(${conn.olcrtc.carrier}/${conn.olcrtc.transport})` : ""}
+				</Text>
+			)}
 			{subInfo && (
 				<View style={styles.subInfoBox}>
 					{(subInfo.upload != null ||

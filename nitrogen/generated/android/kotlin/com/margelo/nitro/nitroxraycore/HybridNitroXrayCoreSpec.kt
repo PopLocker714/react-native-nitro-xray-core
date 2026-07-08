@@ -101,6 +101,14 @@ abstract class HybridNitroXrayCoreSpec: HybridObject() {
   @DoNotStrip
   @Keep
   abstract fun setVpnName(name: String): Unit
+  
+  @DoNotStrip
+  @Keep
+  abstract fun setConnectionInfo(json: String): Unit
+  
+  @DoNotStrip
+  @Keep
+  abstract fun getConnectionInfo(): String
 
   // Default implementation of `HybridObject.toString()`
   override fun toString(): String {
