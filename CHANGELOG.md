@@ -1,3 +1,32 @@
+## [1.3.0](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.2.0...v1.3.0) (2026-07-08)
+
+### ✨ Features
+
+* currentConnection() — persisted connection info (server/protocol/olcrtc/mode) ([516063d](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/516063d335b8b452ea0b4105026c783cd38a7b33))
+* typed error codes (M4) + fix Android permission slot race (M7) ([e8b11ce](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/e8b11ce496bc3014c4fd172965f8ea4b33934686))
+
+### 🐛 Bug Fixes
+
+* **client:** direct connect stops an armed olcrtc (no side-channel drag) ([1c3a1b1](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/1c3a1b1137ecdd6012858e0ba7cf8dff69b5183e))
+* **client:** serial lock for engine ops + subscription timeout + stop olcrtc on disconnect ([c1b4383](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/c1b43835d04c9820a831e746111bb14e0005e143))
+* getStats distinguishes failure from idle (M6), reconnecting state (L1), iOS version (L2) ([fc5f304](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/fc5f3045084d110ed0fec7239bdc670249aa8c31))
+* **ios:** olcrtc+killswitch, disconnect/on-demand, mode switch, readiness events ([24f2902](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/24f2902c95aceecf4fae1d9a715ebc68f1160801))
+* stop olcrtc on native Android teardown + iOS tears down on olcrtc failure ([ff07807](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/ff07807e7c5c56b2f387c6d6042aec70037d7882))
+
+### 💨 Performance Improvements
+
+* **android:** don't block VPN teardown on olcrtc's slow WebRTC stop ([d3da6ef](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/d3da6ef6589ed819f1cc8c6e59bbc3d2465ba731))
+
+### 📚 Documentation
+
+* document olcrtc readiness events, currentConnection, typed errors, setVpnName ([8f8e8d7](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/8f8e8d742cd3a2c05c6f7ffe085ab688dc2f840b))
+
+### 🛠️ Other changes
+
+* **example:** move olcrtc roomId/clientId/keyHex to .env (keep secrets out of the repo) ([d2311eb](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/d2311ebc3e60a67a429059858157f23ff927e4b2))
+* **example:** update olcrtc room to 019f3d76-… ([f799d42](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/f799d42a3239de61109744ffc6b90ad4898531bf))
+* **scripts:** add install-all + bun run device:* for one-command device installs ([b619281](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/b619281f91d0f4259cfcf946474eaaf4e466e474))
+
 ## [1.2.0](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.1.2...v1.2.0) (2026-07-07)
 
 ### ✨ Features
