@@ -42,10 +42,11 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
             val intent = VpnService.prepare(context)
             if (intent != null) {
                 val granted = suspendCancellableCoroutine<Boolean> { continuation ->
-                    com.nitroxraycore.VpnRequestActivity.pendingPromise = { result ->
+                    val id = com.nitroxraycore.VpnRequestActivity.register { result ->
                         continuation.resume(result)
                     }
                     val actIntent = Intent(context, com.nitroxraycore.VpnRequestActivity::class.java)
+                    actIntent.putExtra(com.nitroxraycore.VpnRequestActivity.EXTRA_REQUEST_ID, id)
                     actIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     context.startActivity(actIntent)
                 }
@@ -70,11 +71,12 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
                 }
 
                 val granted = suspendCancellableCoroutine<Boolean> { continuation ->
-                    com.nitroxraycore.VpnRequestActivity.pendingPromise = { result ->
+                    val id = com.nitroxraycore.VpnRequestActivity.register { result ->
                         continuation.resume(result)
                     }
                     val actIntent = Intent(context, com.nitroxraycore.VpnRequestActivity::class.java)
                     actIntent.action = com.nitroxraycore.VpnRequestActivity.ACTION_REQUEST_NOTIFICATION
+                    actIntent.putExtra(com.nitroxraycore.VpnRequestActivity.EXTRA_REQUEST_ID, id)
                     actIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     context.startActivity(actIntent)
                 }
@@ -188,11 +190,13 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
                 XrayEngine.startOlcrtc(configJson)
             }
             if (result != 0) {
+                // "CODE|message" — the JS client parses the prefix into a typed
+                // XrayError so callers can branch (retry vs. fatal).
                 val reason = when (result) {
-                    -1 -> "invalid olcrtc config JSON"
-                    -2 -> "olcrtc failed to start"
-                    -3 -> "olcrtc SOCKS listener not ready in time"
-                    else -> "olcrtc start failed (code $result)"
+                    -1 -> "OLCRTC_INVALID_CONFIG|invalid olcrtc config JSON"
+                    -2 -> "OLCRTC_START_FAILED|olcrtc failed to start"
+                    -3 -> "OLCRTC_NOT_READY|olcrtc SOCKS listener not ready in time"
+                    else -> "OLCRTC_START_FAILED|olcrtc start failed (code $result)"
                 }
                 throw Exception(reason)
             }

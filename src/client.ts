@@ -13,6 +13,7 @@ import { urlTest } from './urltest/urltest'
 import type { UrlTestOptions, UrlTestResult } from './urltest/urltest'
 import type { OlcrtcClientConfig } from './olcrtc/types'
 import { createSerialLock } from './lock'
+import { XrayError, toXrayError } from './errors'
 
 export interface ConnectOptions extends BuildConfigOptions {}
 
@@ -136,12 +137,16 @@ async function fetchSubscription(
       },
     })
     if (!response.ok) {
-      throw new Error(`Subscription fetch failed: HTTP ${response.status}`)
+      throw new XrayError(
+        'SUBSCRIPTION_HTTP_ERROR',
+        `Subscription fetch failed: HTTP ${response.status}`
+      )
     }
     return response
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') {
-      throw new Error(
+      throw new XrayError(
+        'SUBSCRIPTION_TIMEOUT',
         `Subscription fetch timed out after ${SUBSCRIPTION_TIMEOUT_MS}ms`
       )
     }
@@ -245,7 +250,11 @@ export const XrayClient = {
         },
         olcrtc: options?.olcrtc ? olcrtcMeta() : undefined,
       })
-      await NitroXrayCore.startXray(JSON.stringify(config))
+      try {
+        await NitroXrayCore.startXray(JSON.stringify(config))
+      } catch (e) {
+        throw toXrayError(e, 'ENGINE_START_FAILED')
+      }
     })
   },
 
@@ -257,7 +266,11 @@ export const XrayClient = {
       // Raw JSON has no structured metadata to record; clear any stale info so
       // currentConnection() doesn't report a previous connection.
       clearConnectionInfo()
-      await NitroXrayCore.startXray(configJson)
+      try {
+        await NitroXrayCore.startXray(configJson)
+      } catch (e) {
+        throw toXrayError(e, 'ENGINE_START_FAILED')
+      }
     })
   },
 
@@ -380,7 +393,16 @@ export const XrayClient = {
    */
   async startOlcrtc(config: OlcrtcClientConfig): Promise<void> {
     armedOlcrtc = config
-    return withLock(() => NitroXrayCore.startOlcrtc(JSON.stringify(config)))
+    return withLock(async () => {
+      try {
+        await NitroXrayCore.startOlcrtc(JSON.stringify(config))
+      } catch (e) {
+        // Android maps -1/-2/-3 to OLCRTC_* codes; parse into a typed error so
+        // callers can tell "retry" (NOT_READY/START_FAILED) from "fatal"
+        // (INVALID_CONFIG). See XrayError.retryable.
+        throw toXrayError(e, 'OLCRTC_START_FAILED')
+      }
+    })
   },
 
   /** Stop the olcrtc client and release its SOCKS5 listener. */
@@ -407,7 +429,11 @@ export const XrayClient = {
       if (!NitroXrayCore.isVpnConnected()) resetTrafficSessions()
       const config = buildOlcrtcTunnelConfig({ socksPort, ...options })
       persistConnectionInfo({ mode: 'olcrtc-only', olcrtc: olcrtcMeta() })
-      await NitroXrayCore.startXray(JSON.stringify(config))
+      try {
+        await NitroXrayCore.startXray(JSON.stringify(config))
+      } catch (e) {
+        throw toXrayError(e, 'ENGINE_START_FAILED')
+      }
     })
   },
 
@@ -447,7 +473,11 @@ export const XrayClient = {
   async ensurePermission(): Promise<void> {
     const has = await NitroXrayCore.hasVpnPermission()
     if (!has) {
-      await NitroXrayCore.requestVpnPermission()
+      try {
+        await NitroXrayCore.requestVpnPermission()
+      } catch (e) {
+        throw toXrayError(e, 'PERMISSION_DENIED')
+      }
     }
   },
 
