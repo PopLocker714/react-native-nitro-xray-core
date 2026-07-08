@@ -179,6 +179,18 @@ export const XrayClient = {
    */
   async connect(server: ParsedServer, options?: ConnectOptions): Promise<void> {
     return withLock(async () => {
+      // A plain direct connect (no olcrtc option) must not drag an armed olcrtc
+      // along: on iOS the merged WebRTC runtime would still spin up inside the
+      // NE (~57MB, battery) even though traffic routes directly; on Android it
+      // would keep an unused side-channel alive. Stop it unless this connect
+      // actually chains through olcrtc.
+      if (!options?.olcrtc && NitroXrayCore.isOlcrtcRunning()) {
+        try {
+          await NitroXrayCore.stopOlcrtc()
+        } catch {
+          // ignore — proceed with the connect regardless
+        }
+      }
       // A fresh connection starts a fresh traffic session; switching servers
       // while connected keeps accumulating across the engine restart.
       ensureSessionStateHook()
