@@ -211,6 +211,16 @@ class XrayVpnService : VpnService() {
 
     private fun stopVpn() {
         isRunning = false
+        // Stop olcrtc too, so the WebRTC side-channel (SOCKS listener + carrier
+        // traffic + battery) doesn't outlive the tunnel. This runs only on real
+        // teardown (ACTION_STOP / onRevoke / start-failure / onDestroy) — a
+        // server switch restarts the engine WITHOUT calling stopVpn(), so
+        // olcrtc correctly persists across switches. StopOlcrtc is idempotent.
+        try {
+            XrayEngine.stopOlcrtc()
+        } catch (e: Throwable) {
+            Log.w(TAG, "Error stopping olcrtc", e)
+        }
         XrayEngine.stop()
         try {
             vpnInterface?.close()

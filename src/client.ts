@@ -252,9 +252,11 @@ export const XrayClient = {
   },
 
   /**
-   * Toggle the kill switch (Android): on engine failure the TUN stays up and
-   * blackholes traffic instead of leaking. Explicit disconnect always wins.
-   * iOS: rejects until the iOS hardening pass.
+   * Toggle the kill switch. Android: on engine failure the TUN stays up and
+   * blackholes traffic instead of leaking (app-level, fail-closed). iOS:
+   * `NEOnDemandRule` + `includeAllNetworks` on the profile (OS-enforced) —
+   * note this rewrites the profile and may show the system VPN prompt.
+   * Explicit disconnect always wins.
    */
   async setKillSwitch(enabled: boolean): Promise<void> {
     // Serialized: on iOS this rewrites the tunnel profile (saveToPreferences),
@@ -286,10 +288,16 @@ export const XrayClient = {
 
   /**
    * Start the olcrtc WebRTC side-channel client (the "Russia bypass" path).
-   * Resolves once its local SOCKS5 listener is ready. Start this BEFORE
-   * `connect()`, then pass `getOlcrtcSocksPort()` into
+   * Start this BEFORE `connect()`, then pass `getOlcrtcSocksPort()` into
    * `connect(server, { olcrtc: { socksPort } })` so xray dials the server
-   * through olcrtc. Android only for now (iOS rejects until the second pass).
+   * through olcrtc.
+   *
+   * ⚠️ Platform difference: on Android this blocks until the local SOCKS5
+   * listener is actually ready (rejects on failure). On iOS olcrtc runs inside
+   * the Network Extension, which doesn't exist until `connect()` — so here it
+   * only *records* the config and resolves immediately; olcrtc actually starts
+   * (in the background) during the next connect. Don't treat an iOS resolve as
+   * "the side-channel is up".
    */
   async startOlcrtc(config: OlcrtcClientConfig): Promise<void> {
     return withLock(() => NitroXrayCore.startOlcrtc(JSON.stringify(config)))

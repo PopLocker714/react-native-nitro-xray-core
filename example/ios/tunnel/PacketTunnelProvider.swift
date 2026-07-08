@@ -138,13 +138,21 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             //    olcrtc via dialerProxy → 127.0.0.1:<port>; those dials just
             //    retry until olcrtc's SOCKS is up. Merged runtime ~57MB (tight).
             if let olcrtcBlock = self.olcrtcConfigJSON(from: finalConfig) {
-                DispatchQueue.global().async {
+                DispatchQueue.global().async { [weak self] in
                     logger.info("Starting olcrtc (SOCKS, background)…")
                     let rc = olcrtcBlock.withCString { StartOlcrtc(UnsafeMutablePointer(mutating: $0)) }
                     if rc == 0 {
                         logger.info("olcrtc ready (rss \(String(format: "%.1f", Double(CurrentRSSBytes())/1048576), privacy: .public) MB)")
                     } else {
-                        logger.error("StartOlcrtc failed: \(rc) — proxy dials fail until olcrtc is up")
+                        // olcrtc never came up — every proxied dial would black-hole.
+                        // Don't leave the tunnel falsely 'connected' forever: tear
+                        // it down with an error so the app sees the failure and can
+                        // retry (instead of a silent dead connection).
+                        logger.error("StartOlcrtc failed: \(rc) — tearing down tunnel")
+                        StopXray()
+                        let err = NSError(domain: "XrayTunnel", code: Int(rc),
+                            userInfo: [NSLocalizedDescriptionKey: "olcrtc failed to start (rc \(rc))"])
+                        self?.cancelTunnelWithError(err)
                     }
                 }
             }
