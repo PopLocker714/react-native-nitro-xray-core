@@ -12,8 +12,19 @@ import type { TrafficStats, NotificationConfig } from './specs/nitro-xray-core.n
 import { urlTest } from './urltest/urltest'
 import type { UrlTestOptions, UrlTestResult } from './urltest/urltest'
 import type { OlcrtcClientConfig } from './olcrtc/types'
+import { createSerialLock } from './lock'
 
 export interface ConnectOptions extends BuildConfigOptions {}
+
+// Serialize all engine/profile-mutating calls. Without this, overlapping calls
+// (a double-tapped Connect, or connect-then-disconnect) interleave: on iOS a
+// disconnect during an in-flight connect can be silently lost and the tunnel
+// comes up anyway; on Android the start-completion slot races. Read-only calls
+// (stats, isConnected, version, ...) are intentionally NOT locked.
+const withLock = createSerialLock()
+
+/** Default timeout for subscription HTTP fetches (ms). */
+const SUBSCRIPTION_TIMEOUT_MS = 15000
 
 /** Result of {@link XrayClient.fromSubscriptionWithInfo}. */
 export interface SubscriptionResult {
@@ -70,18 +81,35 @@ async function fetchSubscription(
   url: string,
   init?: RequestInit
 ): Promise<Response> {
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      'User-Agent': 'react-native-nitro-xray-core',
-      Accept: '*/*',
-      ...init?.headers,
-    },
-  })
-  if (!response.ok) {
-    throw new Error(`Subscription fetch failed: HTTP ${response.status}`)
+  // Time-box the fetch: on a throttled/censored network (exactly where this
+  // library is used) a subscription host can hold the socket open forever, and
+  // the app's spinner would spin with no way to cancel.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), SUBSCRIPTION_TIMEOUT_MS)
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      ...init,
+      headers: {
+        'User-Agent': 'react-native-nitro-xray-core',
+        Accept: '*/*',
+        ...init?.headers,
+      },
+    })
+    if (!response.ok) {
+      throw new Error(`Subscription fetch failed: HTTP ${response.status}`)
+    }
+    return response
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new Error(
+        `Subscription fetch timed out after ${SUBSCRIPTION_TIMEOUT_MS}ms`
+      )
+    }
+    throw e
+  } finally {
+    clearTimeout(timer)
   }
-  return response
 }
 
 /**
@@ -150,25 +178,41 @@ export const XrayClient = {
    * Resolves once the native engine has actually started.
    */
   async connect(server: ParsedServer, options?: ConnectOptions): Promise<void> {
-    // A fresh connection starts a fresh traffic session; switching servers
-    // while connected keeps accumulating across the engine restart.
-    ensureSessionStateHook()
-    if (!NitroXrayCore.isVpnConnected()) resetTrafficSessions()
-    const config = buildXrayConfig(server, options)
-    await NitroXrayCore.startXray(JSON.stringify(config))
+    return withLock(async () => {
+      // A fresh connection starts a fresh traffic session; switching servers
+      // while connected keeps accumulating across the engine restart.
+      ensureSessionStateHook()
+      if (!NitroXrayCore.isVpnConnected()) resetTrafficSessions()
+      const config = buildXrayConfig(server, options)
+      await NitroXrayCore.startXray(JSON.stringify(config))
+    })
   },
 
   /** Start the engine from raw Xray JSON (escape hatch / advanced use). */
   async startRaw(configJson: string): Promise<void> {
-    ensureSessionStateHook()
-    if (!NitroXrayCore.isVpnConnected()) resetTrafficSessions()
-    await NitroXrayCore.startXray(configJson)
+    return withLock(async () => {
+      ensureSessionStateHook()
+      if (!NitroXrayCore.isVpnConnected()) resetTrafficSessions()
+      await NitroXrayCore.startXray(configJson)
+    })
   },
 
-  /** Stop the engine and tear down the tunnel. */
+  /**
+   * Stop the engine and tear down the tunnel. Also stops olcrtc if it's
+   * running, so the WebRTC side-channel doesn't keep talking to the carrier
+   * after the user disconnects.
+   */
   async disconnect(): Promise<void> {
-    await NitroXrayCore.stopXray()
-    resetTrafficSessions()
+    return withLock(async () => {
+      // Stop olcrtc first (best-effort) so no side-channel outlives the tunnel.
+      try {
+        if (NitroXrayCore.isOlcrtcRunning()) await NitroXrayCore.stopOlcrtc()
+      } catch {
+        // ignore — proceed with the engine teardown regardless
+      }
+      await NitroXrayCore.stopXray()
+      resetTrafficSessions()
+    })
   },
 
   /** Synchronous best-effort connection flag. */
@@ -213,7 +257,9 @@ export const XrayClient = {
    * iOS: rejects until the iOS hardening pass.
    */
   async setKillSwitch(enabled: boolean): Promise<void> {
-    await NitroXrayCore.setKillSwitch(enabled)
+    // Serialized: on iOS this rewrites the tunnel profile (saveToPreferences),
+    // which must not race a connect/disconnect.
+    return withLock(() => NitroXrayCore.setKillSwitch(enabled))
   },
 
   /** Current kill-switch flag (persisted across app restarts). */
@@ -246,12 +292,12 @@ export const XrayClient = {
    * through olcrtc. Android only for now (iOS rejects until the second pass).
    */
   async startOlcrtc(config: OlcrtcClientConfig): Promise<void> {
-    await NitroXrayCore.startOlcrtc(JSON.stringify(config))
+    return withLock(() => NitroXrayCore.startOlcrtc(JSON.stringify(config)))
   },
 
   /** Stop the olcrtc client and release its SOCKS5 listener. */
   async stopOlcrtc(): Promise<void> {
-    await NitroXrayCore.stopOlcrtc()
+    return withLock(() => NitroXrayCore.stopOlcrtc())
   },
 
   /**
@@ -263,14 +309,16 @@ export const XrayClient = {
   async connectOlcrtcOnly(
     options?: Omit<OlcrtcTunnelOptions, 'socksPort' | 'socksHost'>
   ): Promise<void> {
-    const socksPort = NitroXrayCore.getOlcrtcSocksPort()
-    if (socksPort <= 0) {
-      throw new Error('olcrtc is not running — call startOlcrtc() first')
-    }
-    ensureSessionStateHook()
-    if (!NitroXrayCore.isVpnConnected()) resetTrafficSessions()
-    const config = buildOlcrtcTunnelConfig({ socksPort, ...options })
-    await NitroXrayCore.startXray(JSON.stringify(config))
+    return withLock(async () => {
+      const socksPort = NitroXrayCore.getOlcrtcSocksPort()
+      if (socksPort <= 0) {
+        throw new Error('olcrtc is not running — call startOlcrtc() first')
+      }
+      ensureSessionStateHook()
+      if (!NitroXrayCore.isVpnConnected()) resetTrafficSessions()
+      const config = buildOlcrtcTunnelConfig({ socksPort, ...options })
+      await NitroXrayCore.startXray(JSON.stringify(config))
+    })
   },
 
   /**
