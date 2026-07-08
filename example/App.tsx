@@ -1,4 +1,9 @@
-import { SUB_URL } from "@env";
+import {
+	SUB_URL,
+	OLCRTC_ROOM_ID,
+	OLCRTC_CLIENT_ID,
+	OLCRTC_KEY_HEX,
+} from "@env";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -32,9 +37,10 @@ import {
 const OLCRTC: OlcrtcClientConfig = {
 	carrier: "wbstream",
 	transport: "vp8channel",
-	roomId: "019f3d76-0bb2-7970-9413-e223b632d238",
-	clientId: "mobile-1",
-	keyHex: "43ef94f0af31259b7caec7a1e6384799937fa032caae2e8379ee9b9d57042eac",
+	// Identity/secret live in .env (gitignored) — never hardcode keyHex in a repo.
+	roomId: OLCRTC_ROOM_ID,
+	clientId: OLCRTC_CLIENT_ID,
+	keyHex: OLCRTC_KEY_HEX,
 	vp8Fps: 30,
 	vp8BatchSize: 64,
 	readyTimeoutMs: 30000,
