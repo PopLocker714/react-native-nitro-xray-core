@@ -38,13 +38,23 @@ Device-verified on **Android** and **iOS** (Network Extension).
   links, base64 subscriptions, and the `subscription-userinfo` quota/expiry header.
 - **Typed config builder** — a parsed server → a full Xray JSON config. Raw JSON
   stays available as an escape hatch.
-- **State + traffic stats** — `connecting/connected/error` events and
+- **State + traffic stats** — `connecting/connected/reconnecting/error` events and
   session-continuous up/down counters that survive server switches.
+- **olcrtc readiness events** — on iOS `connected` fires before the WebRTC
+  side-channel can carry traffic; the tunnel reports `proxy-connecting` →
+  `proxy-ready` / `proxy-failed` so the UI can show "establishing bypass…".
+- **Connection introspection** — `currentConnection()` returns what you're
+  connected to (server, protocol, mode, olcrtc params), persisted so it's correct
+  even after an app relaunch while on-demand kept the tunnel up.
+- **Typed errors** — failures reject with an `XrayError` carrying a stable `code`
+  and a `retryable` flag, instead of a locale-dependent string.
 - **URLTest** — probe server latency and sort fastest-first.
 - **Kill switch** — fail-closed: Android holds the TUN as a blackhole on engine
-  failure; iOS uses `NEOnDemandRule` + `includeAllNetworks`.
+  failure; iOS uses `NEOnDemandRule` + `includeAllNetworks`. Explicit disconnect
+  always wins over on-demand.
 - **Configurable foreground notification** (Android) — title / text / Disconnect
   button, translatable at runtime.
+- **Configurable VPN name** (iOS) — brand the profile shown in Settings → VPN.
 - **olcrtc bypass** — WebRTC side-channel, chained or standalone. Android + iOS.
 
 ## Installation
@@ -137,6 +147,58 @@ await XrayClient.connectOlcrtcOnly();                   // device → Xray-TUN �
 The olcrtc **server** is deployed separately — see [deploy/olcrtc](deploy/olcrtc)
 for a ready Docker setup.
 
+> **iOS + kill switch:** olcrtc's own WebRTC connection to the carrier must
+> bypass the tunnel, which is incompatible with `includeAllNetworks`. When a
+> connection uses olcrtc the library automatically drops `includeAllNetworks`
+> (on-demand auto-reconnect still applies) — so the fail-closed guarantee is
+> relaxed for olcrtc sessions on iOS.
+
+### olcrtc readiness — "connected" ≠ "traffic flows yet"
+
+On iOS the tunnel reports `connected` before olcrtc has finished its WebRTC
+handshake, so proxied traffic won't flow for a few seconds. The readiness stage
+arrives in the state listener's `message`, so you can show honest UI:
+
+```typescript
+XrayClient.onState((state, message) => {
+  if (state === 'connected' && message === 'proxy-connecting') showBadge('Establishing bypass…');
+  if (state === 'connected' && message === 'proxy-ready')      showBadge('Bypass ready');
+  if (message === 'proxy-failed')                              showBadge('Bypass failed'); // tunnel tears down
+});
+```
+
+### What am I connected to?
+
+`currentConnection()` is persisted natively, so it's correct even on a fresh app
+launch when on-demand (kill switch) brought the tunnel up while the app was closed:
+
+```typescript
+const c = XrayClient.currentConnection();
+// { mode: 'olcrtc-only', olcrtc: { carrier: 'wbstream', transport: 'vp8channel', roomId } }
+// { mode: 'direct', server: { tag, address, port, protocol: 'vless' } }
+if (c) console.log(`Connected: ${c.mode}`, c.server ?? c.olcrtc);
+```
+
+### Typed error handling
+
+```typescript
+import { toXrayError } from 'react-native-nitro-xray-core';
+
+try {
+  await XrayClient.startOlcrtc(cfg);
+} catch (e) {
+  const err = toXrayError(e);           // XrayError { code, retryable, message }
+  if (err.retryable) retryLater();      // OLCRTC_NOT_READY, SUBSCRIPTION_TIMEOUT, …
+  else if (err.code === 'OLCRTC_INVALID_CONFIG') showFatal(err.message);
+}
+```
+
+### Brand the iOS VPN name
+
+```typescript
+XrayClient.setVpnName('My VPN');   // shown in iOS Settings → VPN. Android: no-op.
+```
+
 ## API (`XrayClient`)
 
 **Subscriptions & config**
@@ -150,18 +212,29 @@ for a ready Docker setup.
 - `connect(server, options?)` — build config + start the tunnel
 - `startRaw(configJson)` — start from hand-written Xray JSON
 - `disconnect()` / `isConnected()`
-- `onState(listener)` → unsubscribe fn (`disconnected/connecting/connected/disconnecting/error`)
+- `currentConnection()` → `ConnectionInfo | null` — what's connected (persisted)
+- `onState(listener)` → unsubscribe fn. States: `disconnected / connecting /
+  connected / reconnecting / disconnecting / error`. The `message` arg carries
+  olcrtc sub-state on `connected`: `proxy-connecting / proxy-ready / proxy-failed`.
 
 **Stats & info**
-- `stats(tag?)` → session-continuous `{ uplink, downlink }`
+- `stats(tag?)` → session-continuous `{ uplink, downlink }` (rejects
+  `STATS_UNAVAILABLE` if connected but the stats pipeline is broken)
 - `statsRaw(tag?)` → raw per-engine counters
-- `version()` — Xray-core version
+- `version()` — Xray-core version (iOS: populated after the first connect)
 - `urlTest(servers, options?)` → latency-sorted results
 
-**Kill switch & notification**
+**Errors** — mutating calls reject with `XrayError { code, retryable, message }`.
+Normalize any caught value with `toXrayError(e)`. Codes: `OLCRTC_INVALID_CONFIG`,
+`OLCRTC_START_FAILED`, `OLCRTC_NOT_READY`, `ENGINE_START_FAILED`,
+`PERMISSION_DENIED`, `SUBSCRIPTION_TIMEOUT`, `SUBSCRIPTION_HTTP_ERROR`,
+`STATS_UNAVAILABLE`, `UNKNOWN`.
+
+**Kill switch & branding**
 - `setKillSwitch(enabled)` / `isKillSwitchEnabled()`
 - `setNotificationConfig({ title?, text?, disconnectLabel?, ... })` (Android)
 - `requestNotificationPermission()` (Android 13+)
+- `setVpnName(name)` — brand the profile in iOS Settings → VPN
 
 **olcrtc bypass**
 - `startOlcrtc(config)` / `stopOlcrtc()`
@@ -195,8 +268,12 @@ cd go-core
 ./build_ios.sh             # Xray.xcframework (arm64 device + arm64 simulator)
 ```
 
-Run the example app: `cd example && bun install && bun run android` (or
-`scripts/ios-device.sh` for a signed device build).
+Run the example app on every connected device (Android + iPhone) in one go:
+
+```bash
+bun run device          # both platforms, whatever is attached
+bun run device:android  # Android only     bun run device:ios  # iOS only
+```
 
 ## Credits & acknowledgements
 
