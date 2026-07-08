@@ -12,7 +12,10 @@
     "clean": "git clean -dfX",
     "release": "semantic-release",
     "build": "bun run typecheck && bob build",
-    "codegen": "nitrogen --logLevel=\"debug\" && bun run build && node post-script.js"
+    "codegen": "nitrogen --logLevel=\"debug\" && bun run build && node post-script.js",
+    "device": "bash scripts/install-all.sh",
+    "device:android": "bash scripts/install-all.sh --android",
+    "device:ios": "bash scripts/install-all.sh --ios"
   },
   "keywords": [
     "react-native",
