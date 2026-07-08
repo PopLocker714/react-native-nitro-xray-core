@@ -99,6 +99,12 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
 
     override fun getStats(outboundTag: String): Promise<TrafficStats> {
         return Promise.async {
+            // Not running = genuinely no traffic. Distinguish that from a broken
+            // stats pipeline while connected, which rejects (M6) so callers don't
+            // mistake a failure for a real 0-bytes idle.
+            if (!com.nitroxraycore.XrayVpnService.isRunning) {
+                return@async TrafficStats(0.0, 0.0)
+            }
             try {
                 val json = XrayEngine.queryStats(outboundTag)
                 val obj = JSONObject(json)
@@ -108,7 +114,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
                 )
             } catch (e: Throwable) {
                 Log.e("NitroXrayCore", "getStats failed", e)
-                TrafficStats(0.0, 0.0)
+                throw Exception("STATS_UNAVAILABLE|${e.message ?: "stats query failed"}")
             }
         }
     }

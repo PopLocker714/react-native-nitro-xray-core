@@ -325,7 +325,13 @@ export const XrayClient = {
    */
   async stats(outboundTag = 'proxy'): Promise<TrafficStats> {
     ensureSessionStateHook()
-    const raw = await NitroXrayCore.getStats(outboundTag)
+    let raw: TrafficStats
+    try {
+      raw = await NitroXrayCore.getStats(outboundTag)
+    } catch (e) {
+      // Connected but the stats pipeline returned nothing (not a real 0-idle).
+      throw toXrayError(e, 'STATS_UNAVAILABLE')
+    }
     return trafficSession(outboundTag).update(raw)
   },
 
@@ -335,7 +341,11 @@ export const XrayClient = {
    * Prefer `stats()` for UI display.
    */
   async statsRaw(outboundTag = 'proxy'): Promise<TrafficStats> {
-    return NitroXrayCore.getStats(outboundTag)
+    try {
+      return await NitroXrayCore.getStats(outboundTag)
+    } catch (e) {
+      throw toXrayError(e, 'STATS_UNAVAILABLE')
+    }
   },
 
   /** Xray-core version string. */

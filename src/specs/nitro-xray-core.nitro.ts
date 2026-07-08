@@ -22,6 +22,9 @@ export type XrayState =
   | 'connected'
   | 'disconnecting'
   | 'error'
+  /** iOS: the tunnel is re-establishing after a network change (Wi-Fi↔cellular),
+   *  distinct from a fresh 'connecting'. Android has no equivalent event. */
+  | 'reconnecting'
 
 /**
  * Text for the persistent foreground VPN notification (Android). All fields are

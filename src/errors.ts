@@ -11,12 +11,14 @@ export type XrayErrorCode =
   | 'PERMISSION_DENIED' // user declined the VPN permission
   | 'SUBSCRIPTION_TIMEOUT' // subscription fetch timed out — retry
   | 'SUBSCRIPTION_HTTP_ERROR' // subscription server returned non-2xx
+  | 'STATS_UNAVAILABLE' // connected but the stats pipeline returned nothing
   | 'UNKNOWN'
 
 const RETRYABLE: ReadonlySet<XrayErrorCode> = new Set([
   'OLCRTC_START_FAILED',
   'OLCRTC_NOT_READY',
   'SUBSCRIPTION_TIMEOUT',
+  'STATS_UNAVAILABLE',
 ])
 
 /** A typed error thrown by {@link XrayClient} operations. */
@@ -43,6 +45,7 @@ const KNOWN_CODES = new Set<string>([
   'PERMISSION_DENIED',
   'SUBSCRIPTION_TIMEOUT',
   'SUBSCRIPTION_HTTP_ERROR',
+  'STATS_UNAVAILABLE',
   'UNKNOWN',
 ])
 

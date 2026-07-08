@@ -125,12 +125,32 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
     }
 
     // MARK: - getVersion
-    // The Xray engine runs in the Network Extension process, not here, so the
-    // app can't call the Go GetVersion() directly. Reported via the NE in a
-    // later pass; empty for now.
+    // The Xray engine runs in the Network Extension process, so the app can't
+    // call Go's GetVersion() directly. We fetch it from the NE over the provider
+    // message channel on connect and cache it (getVersion is synchronous).
+    // Empty until the first successful connect.
+
+    private var cachedVersion = ""
 
     func getVersion() throws -> String {
-        return ""
+        return cachedVersion
+    }
+
+    /// Ask the NE for the engine version and cache it. No-op if already cached
+    /// or the tunnel isn't connected.
+    private func refreshVersion() {
+        guard cachedVersion.isEmpty,
+              let session = manager?.connection as? NETunnelProviderSession,
+              session.status == .connected,
+              let data = try? JSONSerialization.data(withJSONObject: ["cmd": "version"])
+        else { return }
+        try? session.sendProviderMessage(data) { [weak self] resp in
+            guard let self = self,
+                  let resp = resp,
+                  let v = String(data: resp, encoding: .utf8), !v.isEmpty
+            else { return }
+            self.cachedVersion = v
+        }
     }
 
     // MARK: - getStats
@@ -149,17 +169,23 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         }
         do {
             try session.sendProviderMessage(data) { resp in
-                var up = 0.0
-                var down = 0.0
-                if let resp = resp,
-                   let obj = try? JSONSerialization.jsonObject(with: resp) as? [String: Any] {
-                    up = (obj["uplink"] as? NSNumber)?.doubleValue ?? 0
-                    down = (obj["downlink"] as? NSNumber)?.doubleValue ?? 0
+                // Connected but no/invalid reply = the stats pipeline is broken,
+                // which is NOT the same as a genuine 0-bytes idle. Reject so the
+                // caller can tell the difference (M6).
+                guard let resp = resp,
+                      let obj = try? JSONSerialization.jsonObject(with: resp) as? [String: Any]
+                else {
+                    promise.reject(withError: NSError(domain: "XrayCore", code: -20,
+                        userInfo: [NSLocalizedDescriptionKey: "STATS_UNAVAILABLE|no stats reply from tunnel"]))
+                    return
                 }
+                let up = (obj["uplink"] as? NSNumber)?.doubleValue ?? 0
+                let down = (obj["downlink"] as? NSNumber)?.doubleValue ?? 0
                 promise.resolve(withResult: TrafficStats(uplink: up, downlink: down))
             }
         } catch {
-            promise.resolve(withResult: TrafficStats(uplink: 0, downlink: 0))
+            promise.reject(withError: NSError(domain: "XrayCore", code: -20,
+                userInfo: [NSLocalizedDescriptionKey: "STATS_UNAVAILABLE|\(error.localizedDescription)"]))
         }
         return promise
     }
@@ -195,12 +221,14 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
     private func emitState(_ status: NEVPNStatus) {
         let s: String
         switch status {
-        case .connecting, .reasserting: s = "connecting"
+        case .connecting: s = "connecting"
+        case .reasserting: s = "reconnecting"
         case .connected: s = "connected"
         case .disconnecting: s = "disconnecting"
         case .disconnected, .invalid: s = "disconnected"
         @unknown default: s = "disconnected"
         }
+        if status == .connected { refreshVersion() }
         // NEVPNStatusDidChange can fire repeatedly for the same status — dedupe
         // so subscribers don't get a storm of identical 'connected' events.
         if s == lastEmittedState { return }

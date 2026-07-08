@@ -178,7 +178,11 @@ function App(): React.JSX.Element {
 		const unsubscribe = XrayClient.onState((s, message) => {
 			setState(s);
 			addLog(`state → ${s}${message ? ` (${message})` : ""}`);
-			if (s === "connected") setConn(XrayClient.currentConnection());
+			if (s === "connected") {
+				setConn(XrayClient.currentConnection());
+				// iOS caches the engine version from the NE on connect; re-read it.
+				setTimeout(() => setVersion(XrayClient.version()), 500);
+			}
 			// olcrtc readiness rides in the message on iOS: proxy-connecting →
 			// proxy-ready → (traffic flows). 'connected' alone doesn't mean the
 			// bypass can carry traffic yet.
