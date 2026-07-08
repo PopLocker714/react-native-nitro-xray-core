@@ -32,7 +32,7 @@ import {
 const OLCRTC: OlcrtcClientConfig = {
 	carrier: "wbstream",
 	transport: "vp8channel",
-	roomId: "019f32ee-deb9-70c5-9144-07b5ba33180e",
+	roomId: "019f3d76-0bb2-7970-9413-e223b632d238",
 	clientId: "mobile-1",
 	keyHex: "43ef94f0af31259b7caec7a1e6384799937fa032caae2e8379ee9b9d57042eac",
 	vp8Fps: 30,
