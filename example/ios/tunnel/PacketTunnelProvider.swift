@@ -51,6 +51,11 @@ private let logger = Logger(subsystem: "com.xraycore.example.tunnel", category: 
 
 class PacketTunnelProvider: NEPacketTunnelProvider {
 
+    // olcrtc readiness for this session, queried by the app over
+    // sendProviderMessage (App Group UserDefaults doesn't propagate NE→app
+    // reliably). "" = none/direct, else "connecting" | "ready" | "failed".
+    private var olcrtcStatus = ""
+
     // MARK: - startTunnel
 
     override func startTunnel(options: [String: NSObject]?,
@@ -137,24 +142,30 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             //    handler is delayed that long. xray dials its server through
             //    olcrtc via dialerProxy → 127.0.0.1:<port>; those dials just
             //    retry until olcrtc's SOCKS is up. Merged runtime ~57MB (tight).
+            // Track olcrtc readiness (queried by the app over sendProviderMessage)
+            // so it can surface 'proxy-connecting' → 'proxy-ready' — on iOS
+            // 'connected' fires before olcrtc can carry traffic (~seconds-to-45s).
             if let olcrtcBlock = self.olcrtcConfigJSON(from: finalConfig) {
+                self.olcrtcStatus = "connecting"
                 DispatchQueue.global().async { [weak self] in
                     logger.info("Starting olcrtc (SOCKS, background)…")
                     let rc = olcrtcBlock.withCString { StartOlcrtc(UnsafeMutablePointer(mutating: $0)) }
                     if rc == 0 {
+                        self?.olcrtcStatus = "ready"
                         logger.info("olcrtc ready (rss \(String(format: "%.1f", Double(CurrentRSSBytes())/1048576), privacy: .public) MB)")
                     } else {
-                        // olcrtc never came up — every proxied dial would black-hole.
-                        // Don't leave the tunnel falsely 'connected' forever: tear
-                        // it down with an error so the app sees the failure and can
-                        // retry (instead of a silent dead connection).
-                        logger.error("StartOlcrtc failed: \(rc) — tearing down tunnel")
-                        StopXray()
-                        let err = NSError(domain: "XrayTunnel", code: Int(rc),
-                            userInfo: [NSLocalizedDescriptionKey: "olcrtc failed to start (rc \(rc))"])
-                        self?.cancelTunnelWithError(err)
+                        // olcrtc never came up — proxied dials would black-hole.
+                        // DON'T cancelTunnelWithError here: under the kill switch
+                        // (on-demand) the OS would just reconnect → an endless
+                        // failing-tunnel loop that blocks all device traffic.
+                        // Instead surface "failed"; the app polls it (proxy-failed)
+                        // and drives a clean disconnect (which disables on-demand).
+                        self?.olcrtcStatus = "failed"
+                        logger.error("StartOlcrtc failed: \(rc) — reported to app as proxy-failed")
                     }
                 }
+            } else {
+                self.olcrtcStatus = ""
             }
 
             // 6. Start Xray Core ——————————————————————————————————————————
@@ -192,6 +203,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     override func stopTunnel(with reason: NEProviderStopReason,
                              completionHandler: @escaping () -> Void) {
         logger.info("stopTunnel: reason=\(reason.rawValue)")
+        olcrtcStatus = ""
         StopOlcrtc()
         let result = StopXray()
         if result != 0 {
@@ -233,6 +245,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             } else {
                 completionHandler?(nil)
             }
+        case "olcrtcStatus":
+            // {"cmd":"olcrtcStatus"} -> raw status string ("connecting"|"ready"|
+            // "failed"|""). Reliable NE→app channel (App Group UserDefaults
+            // doesn't propagate NE→app in time).
+            completionHandler?(Data(olcrtcStatus.utf8))
         default:
             completionHandler?(nil)
         }

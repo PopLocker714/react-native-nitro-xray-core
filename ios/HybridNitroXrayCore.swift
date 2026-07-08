@@ -115,6 +115,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
 
     private var manager: NETunnelProviderManager?
     private var stateCallback: ((String, String) -> Void)?
+    private var lastEmittedState: String?
     private var statusObserver: NSObjectProtocol?
 
     deinit {
@@ -200,6 +201,10 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         case .disconnected, .invalid: s = "disconnected"
         @unknown default: s = "disconnected"
         }
+        // NEVPNStatusDidChange can fire repeatedly for the same status — dedupe
+        // so subscribers don't get a storm of identical 'connected' events.
+        if s == lastEmittedState { return }
+        lastEmittedState = s
         self.stateCallback?(s, "")
     }
 
@@ -310,16 +315,48 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
                             return
                         }
 
-                        // 5. Start the tunnel
-                        do {
-                            try mgr.connection.startVPNTunnel(options: [
-                                "config": configJson as NSObject
-                            ])
-                            print("[HybridNitroXrayCore] startVPNTunnel called successfully.")
-                            promise.resolve()
-                        } catch {
-                            print("[HybridNitroXrayCore] startVPNTunnel ERROR: \(error)")
-                            promise.reject(withError: error)
+                        // Actually launch the tunnel with the new config.
+                        let launch: () -> Void = {
+                            do {
+                                try mgr.connection.startVPNTunnel(options: [
+                                    "config": configJson as NSObject
+                                ])
+                                print("[HybridNitroXrayCore] startVPNTunnel called successfully.")
+                                // If this connect chains through olcrtc, watch its
+                                // readiness and emit proxy-connecting/ready/failed —
+                                // 'connected' fires before olcrtc can carry traffic.
+                                if self.pendingOlcrtcConfig != nil {
+                                    self.observeOlcrtcReadiness()
+                                }
+                                promise.resolve()
+                            } catch {
+                                print("[HybridNitroXrayCore] startVPNTunnel ERROR: \(error)")
+                                promise.reject(withError: error)
+                            }
+                        }
+
+                        // 5. Start the tunnel — but iOS IGNORES startVPNTunnel while
+                        //    the tunnel is already up, so a mode/server switch would
+                        //    stay on the OLD config. If we're connected, stop first,
+                        //    wait for .disconnected, then launch the new config (now
+                        //    in Keychain, so an on-demand reconnect also uses it).
+                        let status = mgr.connection.status
+                        if status == .connected || status == .connecting
+                            || status == .reasserting || status == .disconnecting {
+                            print("[HybridNitroXrayCore] switching config — stopping current tunnel first")
+                            var obs: NSObjectProtocol?
+                            obs = NotificationCenter.default.addObserver(
+                                forName: .NEVPNStatusDidChange,
+                                object: mgr.connection, queue: .main
+                            ) { _ in
+                                if mgr.connection.status == .disconnected {
+                                    if let obs = obs { NotificationCenter.default.removeObserver(obs) }
+                                    launch()
+                                }
+                            }
+                            mgr.connection.stopVPNTunnel()
+                        } else {
+                            launch()
                         }
                     }
                 }
@@ -331,9 +368,49 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
     // MARK: - stopXray
 
     func stopXray() throws -> Promise<Void> {
-        manager?.connection.stopVPNTunnel()
-        manager = nil
-        return Promise.resolved(withResult: ())
+        olcrtcPoll?.cancel()
+        let promise = Promise<Void>()
+        // Explicit disconnect must WIN over the kill switch. When the kill switch
+        // is on, the profile has on-demand enabled (NEOnDemandRuleConnect), so a
+        // plain stopVPNTunnel() is immediately undone by iOS reconnecting — the
+        // Disconnect button appears to do nothing. So: disable on-demand, persist,
+        // THEN stop. The persisted kill-switch flag is untouched, so the next
+        // connect re-enables on-demand via loadOrCreateManager.
+        let finishStop: (NETunnelProviderManager?) -> Void = { [weak self] mgr in
+            guard let mgr = mgr else {
+                self?.manager = nil
+                promise.resolve()
+                return
+            }
+            let doStop = {
+                // Keep self.manager pointing at this profile — the NEVPNStatus
+                // observer reads self.manager?.connection.status to emit the
+                // 'disconnecting' → 'disconnected' events. Nil-ing it here would
+                // silence them and the UI would stay stuck on 'connected'.
+                self?.manager = mgr
+                mgr.connection.stopVPNTunnel()
+                promise.resolve()
+            }
+            if mgr.isOnDemandEnabled {
+                mgr.isOnDemandEnabled = false
+                mgr.onDemandRules = []
+                mgr.saveToPreferences { _ in doStop() }
+            } else {
+                doStop()
+            }
+        }
+        if let mgr = manager {
+            finishStop(mgr)
+        } else {
+            // App may have just opened with the VPN already up via on-demand and
+            // no manager cached yet — load it so we can actually stop it.
+            NETunnelProviderManager.loadAllFromPreferences { managers, _ in
+                finishStop(managers?.first {
+                    ($0.protocolConfiguration as? NETunnelProviderProtocol)?.providerBundleIdentifier == kTunnelBundleID
+                })
+            }
+        }
+        return promise
     }
 
     // MARK: - Kill switch (iOS: second pass — see docs/IMPLEMENTATION_PLAN.md)
@@ -346,6 +423,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
 
     private static let kKillSwitchKey = "xray_kill_switch"
     private static let kVpnNameKey = "xray_vpn_name"
+    private var olcrtcPoll: DispatchWorkItem?
 
     func setKillSwitch(enabled: Bool) throws -> Promise<Void> {
         UserDefaults.standard.set(enabled, forKey: Self.kKillSwitchKey)
@@ -428,6 +506,56 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         return pendingOlcrtcConfig != nil
     }
 
+    /// Poll the NE's olcrtc readiness over sendProviderMessage and emit state
+    /// events so the app can show "establishing bypass…" until olcrtc can
+    /// actually carry traffic. On iOS 'connected' fires while olcrtc's WebRTC
+    /// handshake (+retries) is still in progress. Emits the sub-state via the
+    /// state `message`: "proxy-connecting" / "proxy-ready" / "proxy-failed".
+    /// (App Group UserDefaults doesn't propagate NE→app reliably, so we query
+    /// the extension directly — the same channel getStats uses.)
+    private func observeOlcrtcReadiness() {
+        olcrtcPoll?.cancel()
+        let deadline = Date().addingTimeInterval(60)
+        var last: String? = nil
+        func reschedule() {
+            if Date() > deadline { return }
+            let work = DispatchWorkItem { [weak self] in
+                guard self != nil else { return }
+                step()
+            }
+            self.olcrtcPoll = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
+        }
+        func step() {
+            guard let session = self.manager?.connection as? NETunnelProviderSession
+            else { return }
+            let status = session.status
+            guard status == .connected || status == .connecting || status == .reasserting
+            else { return }
+            // The NE only answers messages once the tunnel is fully up.
+            guard status == .connected,
+                  let data = try? JSONSerialization.data(withJSONObject: ["cmd": "olcrtcStatus"])
+            else { reschedule(); return }
+            do {
+                try session.sendProviderMessage(data) { [weak self] resp in
+                    guard let self = self else { return }
+                    let s = resp.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+                    if !s.isEmpty, s != last {
+                        last = s
+                        // Emit on main — the provider-message completion runs off
+                        // the main thread and the JS callback must be delivered there.
+                        DispatchQueue.main.async { self.stateCallback?("connected", "proxy-\(s)") }
+                    }
+                    if s == "ready" || s == "failed" { return }
+                    DispatchQueue.main.async { reschedule() }
+                }
+            } catch {
+                reschedule()
+            }
+        }
+        step()
+    }
+
     /// If an olcrtc client config is armed, inject it as the config's top-level
     /// "olcrtc" block so the NE starts olcrtc before xray. Returns the config
     /// unchanged when nothing is armed or JSON handling fails.
@@ -497,7 +625,15 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
             // Re-apply the persisted kill-switch setting on every profile write,
             // otherwise rebuilding proto here would drop includeAllNetworks.
             let killSwitch = UserDefaults.standard.bool(forKey: Self.kKillSwitchKey)
-            proto.includeAllNetworks = killSwitch
+            // olcrtc runs inside the NE and its own WebRTC connection to the
+            // carrier (wbstream) MUST bypass the tunnel. includeAllNetworks would
+            // capture that connection and loop it (olcrtc → tunnel → olcrtc) →
+            // the tunnel shows "connected" but no traffic ever flows. So force
+            // includeAllNetworks off whenever olcrtc is in use. On-demand still
+            // applies (auto-reconnect); we only drop the fail-closed part, which
+            // is unavoidable for olcrtc on iOS.
+            let usingOlcrtc = self.pendingOlcrtcConfig != nil
+            proto.includeAllNetworks = killSwitch && !usingOlcrtc
             proto.excludeLocalNetworks = true
 
             mgr.protocolConfiguration = proto

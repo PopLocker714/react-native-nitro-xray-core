@@ -79,6 +79,9 @@ function App(): React.JSX.Element {
 	const [subInfo, setSubInfo] = useState<SubscriptionInfo | null>(null);
 	const [activeTag, setActiveTag] = useState<string | null>(null);
 	const [state, setState] = useState<string>("disconnected");
+	const [proxyStatus, setProxyStatus] = useState<
+		"connecting" | "ready" | "failed" | null
+	>(null);
 	const [stats, setStats] = useState<{ up: number; down: number }>({
 		up: 0,
 		down: 0,
@@ -167,9 +170,25 @@ function App(): React.JSX.Element {
 		const unsubscribe = XrayClient.onState((s, message) => {
 			setState(s);
 			addLog(`state → ${s}${message ? ` (${message})` : ""}`);
+			// olcrtc readiness rides in the message on iOS: proxy-connecting →
+			// proxy-ready → (traffic flows). 'connected' alone doesn't mean the
+			// bypass can carry traffic yet.
+			if (message === "proxy-connecting") setProxyStatus("connecting");
+			else if (message === "proxy-ready") setProxyStatus("ready");
+			else if (message === "proxy-failed") {
+				setProxyStatus("failed");
+				// olcrtc couldn't establish — the tunnel is up but can't carry
+				// traffic. Disconnect cleanly (also disables the kill switch's
+				// on-demand) instead of leaving a dead-but-connected tunnel.
+				addLog("olcrtc failed — disconnecting");
+				XrayClient.disconnect().catch((e: unknown) =>
+					addLog(`auto-disconnect error: ${errStr(e)}`),
+				);
+			}
 			if (s === "disconnected" || s === "error") {
 				setActiveTag(null);
 				setStats({ up: 0, down: 0 });
+				setProxyStatus(null);
 			}
 		});
 		return unsubscribe;
@@ -329,6 +348,13 @@ function App(): React.JSX.Element {
 			<Text style={styles.status}>
 				{version ? `xray ${version} · ` : ""}
 				{state}
+				{proxyStatus === "connecting"
+					? " · establishing bypass…"
+					: proxyStatus === "ready"
+						? " · bypass ready"
+						: proxyStatus === "failed"
+							? " · bypass failed"
+							: ""}
 			</Text>
 			<Text style={styles.status}>
 				↑ {formatBytes(stats.up)}   ↓ {formatBytes(stats.down)}
