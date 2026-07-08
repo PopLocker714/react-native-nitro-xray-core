@@ -268,12 +268,9 @@ export const XrayClient = {
    */
   async disconnect(): Promise<void> {
     return withLock(async () => {
-      // Stop olcrtc first (best-effort) so no side-channel outlives the tunnel.
-      try {
-        if (NitroXrayCore.isOlcrtcRunning()) await NitroXrayCore.stopOlcrtc()
-      } catch {
-        // ignore — proceed with the engine teardown regardless
-      }
+      // olcrtc is torn down by the native stop path (Android stopVpn / iOS NE
+      // stopTunnel) in the BACKGROUND, so its slow WebRTC teardown (~seconds)
+      // doesn't block the user-visible disconnect (the lock icon / status).
       await NitroXrayCore.stopXray()
       resetTrafficSessions()
       clearConnectionInfo()

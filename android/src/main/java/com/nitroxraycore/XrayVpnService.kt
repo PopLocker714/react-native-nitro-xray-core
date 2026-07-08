@@ -211,16 +211,11 @@ class XrayVpnService : VpnService() {
 
     private fun stopVpn() {
         isRunning = false
-        // Stop olcrtc too, so the WebRTC side-channel (SOCKS listener + carrier
-        // traffic + battery) doesn't outlive the tunnel. This runs only on real
-        // teardown (ACTION_STOP / onRevoke / start-failure / onDestroy) — a
-        // server switch restarts the engine WITHOUT calling stopVpn(), so
-        // olcrtc correctly persists across switches. StopOlcrtc is idempotent.
-        try {
-            XrayEngine.stopOlcrtc()
-        } catch (e: Throwable) {
-            Log.w(TAG, "Error stopping olcrtc", e)
-        }
+        // Tear down the user-visible parts FIRST — close the TUN and REMOVE the
+        // foreground notification (lock icon) — so "off" is immediate. olcrtc's
+        // WebRTC teardown (mobile.Stop) can take several seconds; if we did it
+        // here first it would hold the lock icon up the whole time (the VLESS
+        // path has no olcrtc, which is why it felt instant by comparison).
         XrayEngine.stop()
         try {
             vpnInterface?.close()
@@ -236,6 +231,18 @@ class XrayVpnService : VpnService() {
         } catch (e: Exception) {
             Log.w(TAG, "Error clearing foreground state", e)
         }
+        // Now stop olcrtc in the BACKGROUND — the side-channel must not outlive
+        // the tunnel (battery/privacy), but its slow teardown shouldn't block the
+        // user-visible stop. Runs only on real teardown (ACTION_STOP / onRevoke /
+        // start-failure / onDestroy); a server switch never calls stopVpn(), so
+        // olcrtc persists across switches. StopOlcrtc is idempotent.
+        Thread {
+            try {
+                XrayEngine.stopOlcrtc()
+            } catch (e: Throwable) {
+                Log.w(TAG, "Error stopping olcrtc", e)
+            }
+        }.start()
         Log.i(TAG, "VPN stopped")
     }
 
