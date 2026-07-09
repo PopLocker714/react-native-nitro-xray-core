@@ -54,7 +54,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     // olcrtc readiness for this session, queried by the app over
     // sendProviderMessage (App Group UserDefaults doesn't propagate NE→app
     // reliably). "" = none/direct, else "connecting" | "ready" | "failed".
-    private var olcrtcStatus = ""
+    // Written from the background olcrtc-start thread, read from handleAppMessage
+    // (a different thread) — guard access so the app always sees the latest value.
+    private let olcrtcStatusLock = NSLock()
+    private var _olcrtcStatus = ""
+    private var olcrtcStatus: String {
+        get { olcrtcStatusLock.lock(); defer { olcrtcStatusLock.unlock() }; return _olcrtcStatus }
+        set { olcrtcStatusLock.lock(); _olcrtcStatus = newValue; olcrtcStatusLock.unlock() }
+    }
 
     // MARK: - startTunnel
 

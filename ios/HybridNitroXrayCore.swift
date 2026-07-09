@@ -451,7 +451,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
 
     private static let kKillSwitchKey = "xray_kill_switch"
     private static let kVpnNameKey = "xray_vpn_name"
-    private var olcrtcPoll: DispatchWorkItem?
+    private var olcrtcPoll: DispatchSourceTimer?
 
     func setKillSwitch(enabled: Bool) throws -> Promise<Void> {
         UserDefaults.standard.set(enabled, forKey: Self.kKillSwitchKey)
@@ -545,43 +545,55 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         olcrtcPoll?.cancel()
         let deadline = Date().addingTimeInterval(60)
         var last: String? = nil
-        func reschedule() {
-            if Date() > deadline { return }
-            let work = DispatchWorkItem { [weak self] in
-                guard self != nil else { return }
-                step()
-            }
-            self.olcrtcPoll = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
+
+        // A repeating timer, NOT a recursive reschedule. The old version returned
+        // (dying silently, forever) whenever self.manager was momentarily nil or
+        // the status wasn't yet .connected — which is exactly the cold-start case
+        // (the manager/session is still settling). A ticking timer instead just
+        // skips that tick and tries again, and only stops on a terminal result.
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + 0.3, repeating: 1.0)
+
+        let stop: () -> Void = { [weak self] in
+            self?.olcrtcPoll?.cancel()
+            self?.olcrtcPoll = nil
         }
-        func step() {
-            guard let session = self.manager?.connection as? NETunnelProviderSession
+
+        timer.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            if Date() > deadline { stop(); return }
+            guard let session = self.manager?.connection as? NETunnelProviderSession else {
+                return // manager not ready yet — keep ticking
+            }
+            switch session.status {
+            case .disconnected, .invalid:
+                stop(); return // genuinely torn down
+            case .connecting, .reasserting:
+                return // still coming up — keep ticking
+            case .connected:
+                break
+            @unknown default:
+                return
+            }
+            guard let data = try? JSONSerialization.data(withJSONObject: ["cmd": "olcrtcStatus"])
             else { return }
-            let status = session.status
-            guard status == .connected || status == .connecting || status == .reasserting
-            else { return }
-            // The NE only answers messages once the tunnel is fully up.
-            guard status == .connected,
-                  let data = try? JSONSerialization.data(withJSONObject: ["cmd": "olcrtcStatus"])
-            else { reschedule(); return }
             do {
                 try session.sendProviderMessage(data) { [weak self] resp in
                     guard let self = self else { return }
                     let s = resp.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-                    if !s.isEmpty, s != last {
-                        last = s
-                        // Emit on main — the provider-message completion runs off
-                        // the main thread and the JS callback must be delivered there.
-                        DispatchQueue.main.async { self.stateCallback?("connected", "proxy-\(s)") }
+                    guard !s.isEmpty, s != last else { return }
+                    last = s
+                    DispatchQueue.main.async { self.stateCallback?("connected", "proxy-\(s)") }
+                    if s == "ready" || s == "failed" {
+                        DispatchQueue.main.async { stop() }
                     }
-                    if s == "ready" || s == "failed" { return }
-                    DispatchQueue.main.async { reschedule() }
                 }
             } catch {
-                reschedule()
+                // transient send failure — the next tick retries
             }
         }
-        step()
+        olcrtcPoll = timer
+        timer.resume()
     }
 
     /// If an olcrtc client config is armed, inject it as the config's top-level
