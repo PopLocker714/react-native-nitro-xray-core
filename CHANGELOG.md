@@ -1,3 +1,9 @@
+## [1.3.1](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.3.0...v1.3.1) (2026-07-09)
+
+### 🐛 Bug Fixes
+
+* **ios:** reliable olcrtc proxy-ready event (was dying on cold start) ([b48f0b9](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/b48f0b941507e45d5bac9fd9d7f27825bc841dc1))
+
 ## [1.3.0](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.2.0...v1.3.0) (2026-07-08)
 
 ### ✨ Features
