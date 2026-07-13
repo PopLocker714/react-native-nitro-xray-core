@@ -29,6 +29,12 @@ services:
       # flow ("token required"); a self-hosted jitsi isn't whitelisted so it
       # defeats the bypass.
       OLCRTC_CARRIER: "${OLCRTC_CARRIER:-wbstream}"
+      # wbstream account token (Bearer eyJ...). WITHOUT it the relay runs as an
+      # anonymous guest, which LiveKit forbids from (re)creating rooms — it dies
+      # in a "guests cannot create rooms" 403 loop once the room is GC'd. The
+      # account holds create/publish rights and keeps the room alive. Grab it in
+      # DevTools on stream.wb.ru: any api-room request -> "Authorization: Bearer".
+      OLCRTC_AUTH_TOKEN: "${OLCRTC_AUTH_TOKEN:?set OLCRTC_AUTH_TOKEN (WB account Bearer token) in .env}"
       # wbstream/telemost run on vp8channel (datachannel doesn't work on them).
       # This is also the mobile client's native default.
       OLCRTC_TRANSPORT: "${OLCRTC_TRANSPORT:-vp8channel}"
