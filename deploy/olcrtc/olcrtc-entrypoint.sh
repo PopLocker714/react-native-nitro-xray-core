@@ -17,6 +17,11 @@ fi
 mode="${OLCRTC_MODE:-srv}"
 room_id="${OLCRTC_ROOM_ID:-}"
 carrier="${OLCRTC_CARRIER:-${OLCRTC_AUTH:-}}"
+# Optional pre-issued account token (wbstream). Empty -> anonymous guest flow,
+# which cannot create rooms on LiveKit ("guests cannot create rooms") and dies
+# in a 403 loop once the room is GC'd. Set it to a WB account access token so
+# the session joins with the account's create/publish rights and holds the room.
+auth_token="${OLCRTC_AUTH_TOKEN:-}"
 transport="${OLCRTC_TRANSPORT:-}"
 data_dir="${OLCRTC_DATA_DIR:-/usr/share/olcrtc}"
 dns_server="${OLCRTC_DNS:-8.8.8.8:53}"
@@ -98,6 +103,14 @@ cat > "$config" <<EOF
 mode: $mode
 auth:
   provider: "$carrier"
+EOF
+
+# Emit the account token inside the auth block (keeps it indented under auth:).
+if [ -n "$auth_token" ]; then
+    printf '  token: "%s"\n' "$auth_token" >> "$config"
+fi
+
+cat >> "$config" <<EOF
 room:
   id: "$room_id"
 crypto:
