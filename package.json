@@ -68,7 +68,10 @@
   "workspaces": [
     "example"
   ],
-  "repository": "https://github.com/PopLocker714/react-native-nitro-xray-core.git",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PopLocker714/react-native-nitro-xray-core.git"
+  },
   "author": "",
   "license": "MIT",
   "bugs": "https://github.com/PopLocker714/react-native-nitro-xray-core/issues",
