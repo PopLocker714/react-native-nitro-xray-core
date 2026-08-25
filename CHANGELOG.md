@@ -1,3 +1,18 @@
+## [1.4.0](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.3.1...v1.4.0) (2026-08-25)
+
+### ✨ Features
+
+* **olcrtc/deploy:** OLCRTC_AUTH_TOKEN -> auth.token for wbstream account mode ([bdbeff6](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/bdbeff6b67d10766e0420f100f9d474cf1091442))
+
+### 🐛 Bug Fixes
+
+* **olcrtc/deploy:** pass OLCRTC_AUTH_TOKEN into the container ([aa0ec91](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/aa0ec9150e2eda79e6ad170c7078306a06d44905))
+
+### 🛠️ Other changes
+
+* добавить dry-run в workflow релиза ([ee1c429](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/ee1c4294d09855261a01c290371be5a6d04d123b))
+* перевести публикацию на npm Trusted Publishing (OIDC) ([ac425ff](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/ac425ff6d92b1c8d5cd97ebf1f8e151a4dcfc791))
+
 ## [1.3.1](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.3.0...v1.3.1) (2026-07-09)
 
 ### 🐛 Bug Fixes
