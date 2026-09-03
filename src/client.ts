@@ -14,6 +14,8 @@ import type { UrlTestOptions, UrlTestResult } from './urltest/urltest'
 import type { OlcrtcClientConfig } from './olcrtc/types'
 import { createSerialLock } from './lock'
 import { XrayError, toXrayError } from './errors'
+import { CORE_VERSIONS } from './generated/core-versions'
+import type { CoreVersions } from './generated/core-versions'
 
 export interface ConnectOptions extends BuildConfigOptions {}
 
@@ -42,6 +44,15 @@ export interface ConnectionInfo {
   server?: { tag: string; address: string; port: number; protocol: string }
   /** The olcrtc side-channel params (present for olcrtc-chained / olcrtc-only). */
   olcrtc?: { carrier: string; roomId: string; transport: string }
+  /**
+   * Human-readable name of this connection, for the Android notification.
+   *
+   * Substituted into the `{connection}` placeholder of the notification text
+   * (see setNotificationConfig). Without it the server tag is used, which is
+   * empty for olcrtc-only — so pass a label whenever you offer a bypass-only
+   * entry, or its notification stays generic.
+   */
+  label?: string
 }
 
 // The olcrtc client config armed via startOlcrtc(), so connect()/connectOlcrtcOnly()
@@ -110,7 +121,8 @@ function ensureSessionStateHook(): void {
     } else if (
       state === 'connected' ||
       state === 'disconnected' ||
-      state === 'error'
+      state === 'error' ||
+      state === 'blocked'
     ) {
       for (const session of trafficSessions.values()) session.commitRestart()
     }
@@ -290,9 +302,57 @@ export const XrayClient = {
     })
   },
 
-  /** Synchronous best-effort connection flag. */
+  /**
+   * Synchronous best-effort flag: is the tunnel INTERFACE up.
+   *
+   * Not the same question as "is traffic flowing". On Android it stays true
+   * across a server switch and during a kill-switch hold, where the tunnel is
+   * deliberately kept up with a dead engine. Pair it with {@link isEngineRunning}
+   * to tell those apart.
+   */
   isConnected(): boolean {
     return NitroXrayCore.isVpnConnected()
+  },
+
+  /**
+   * Whether the proxy engine is running behind the tunnel.
+   *
+   * `isConnected() && !isEngineRunning()` is the kill-switch blackhole: the
+   * interface is capturing traffic and dropping it. That is the one state a UI
+   * must render as "blocked", never as "connected" — and reading it here is how
+   * a freshly reloaded JS context recovers it, since the native state stream
+   * only reports transitions.
+   */
+  isEngineRunning(): boolean {
+    return NitroXrayCore.isEngineRunning()
+  },
+
+  /**
+   * Opt in to storing the last successful connection so a home-screen widget,
+   * Quick Settings tile or shortcut can bring the tunnel back up without the JS
+   * runtime. Off by default: the stored config carries the server credential,
+   * so only enable it if you actually ship such an entry point. Disabling wipes
+   * what was stored. Android only; a no-op on iOS.
+   */
+  setQuickConnectEnabled(enabled: boolean): void {
+    try {
+      NitroXrayCore.setQuickConnectEnabled(enabled)
+    } catch {
+      // older native build without the API — the feature simply stays off
+    }
+  },
+
+  /**
+   * Whether a one-tap reconnect is possible right now: enabled, and at least
+   * one connection has succeeded since. Use it to render the widget's
+   * "open the app first" state.
+   */
+  isQuickConnectReady(): boolean {
+    try {
+      return NitroXrayCore.isQuickConnectReady()
+    } catch {
+      return false
+    }
   },
 
   /**
@@ -317,7 +377,9 @@ export const XrayClient = {
    * 'proxy'). Unlike the raw engine counters (which reset every time the
    * engine restarts, e.g. on server switch), these keep growing for the whole
    * VPN session: switching servers does not zero them. The session resets on
-   * `disconnect()` or when `connect()` starts from a disconnected state.
+   * `disconnect()`, and on a `connect()` that starts with the tunnel down —
+   * keyed on the tunnel, not on the reported state, so reconnecting out of a
+   * kill-switch hold keeps accumulating.
    *
    * Accuracy note: bytes transferred between the last poll before a switch
    * and the engine restart are not banked — totals are display-grade, not
@@ -348,9 +410,35 @@ export const XrayClient = {
     }
   },
 
-  /** Xray-core version string. */
+  /**
+   * Xray-core version as reported by the running engine — e.g. "26.3.27".
+   *
+   * Returns "" when the engine cannot be asked: on iOS the Go core lives in
+   * the Network Extension, so the value is only cached after the first
+   * connect. Prefer {@link XrayClient.coreVersions}, which falls back to the
+   * version compiled into the shipped binary.
+   */
   version(): string {
-    return NitroXrayCore.getVersion()
+    try {
+      return NitroXrayCore.getVersion()
+    } catch {
+      return ''
+    }
+  },
+
+  /**
+   * Versions of every native core in this build — Xray-core and olcrtc.
+   *
+   * `xray` prefers what the running engine reports and falls back to the
+   * version extracted from the shipped binary, so it is never empty and never
+   * changes shape mid-session (the iOS cache is empty until the first
+   * connect). The remaining fields are compile-time facts read out of the
+   * binaries at build time by `scripts/gen-core-versions.ts` — olcrtc has no
+   * runtime version symbol at all, and on iOS it does not even run in the app
+   * process.
+   */
+  coreVersions(): CoreVersions {
+    return { ...CORE_VERSIONS, xray: this.version() || CORE_VERSIONS.xray }
   },
 
   /**
@@ -428,7 +516,15 @@ export const XrayClient = {
    * the TUN↔SOCKS plumbing; no subscription server is involved.
    */
   async connectOlcrtcOnly(
-    options?: Omit<OlcrtcTunnelOptions, 'socksPort' | 'socksHost'>
+    options?: Omit<OlcrtcTunnelOptions, 'socksPort' | 'socksHost'> & {
+      /**
+       * Name to show in the Android notification via `{connection}`.
+       *
+       * There is no server tag in this mode, so without a label the
+       * notification has nothing to name and stays generic.
+       */
+      label?: string
+    }
   ): Promise<void> {
     return withLock(async () => {
       const socksPort = NitroXrayCore.getOlcrtcSocksPort()
@@ -438,7 +534,11 @@ export const XrayClient = {
       ensureSessionStateHook()
       if (!NitroXrayCore.isVpnConnected()) resetTrafficSessions()
       const config = buildOlcrtcTunnelConfig({ socksPort, ...options })
-      persistConnectionInfo({ mode: 'olcrtc-only', olcrtc: olcrtcMeta() })
+      persistConnectionInfo({
+        mode: 'olcrtc-only',
+        olcrtc: olcrtcMeta(),
+        label: options?.label,
+      })
       try {
         await NitroXrayCore.startXray(JSON.stringify(config))
       } catch (e) {

@@ -58,6 +58,9 @@ namespace margelo::nitro::nitroxraycore {
     std::shared_ptr<Promise<void>> requestVpnPermission() override;
     std::shared_ptr<Promise<bool>> requestNotificationPermission() override;
     bool isVpnConnected() override;
+    bool isEngineRunning() override;
+    void setQuickConnectEnabled(bool enabled) override;
+    bool isQuickConnectReady() override;
     std::string getVersion() override;
     std::shared_ptr<Promise<void>> startXray(const std::string& configJson) override;
     std::shared_ptr<Promise<void>> stopXray() override;

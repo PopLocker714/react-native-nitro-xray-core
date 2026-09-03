@@ -9,6 +9,7 @@ package com.margelo.nitro.nitroxraycore
 
 import androidx.annotation.Keep
 import com.facebook.proguard.annotations.DoNotStrip
+import java.util.Objects
 
 
 /**
@@ -25,6 +26,20 @@ data class TrafficStats(
   val downlink: Double
 ) {
   /* primary constructor */
+
+  override fun equals(other: Any?): Boolean {
+    if (this === other) return true
+    if (other !is TrafficStats) return false
+    return Objects.deepEquals(this.uplink, other.uplink)
+      && Objects.deepEquals(this.downlink, other.downlink)
+  }
+
+  override fun hashCode(): Int {
+    return arrayOf<Any?>(
+      uplink,
+      downlink
+    ).contentDeepHashCode()
+  }
 
   companion object {
     /**

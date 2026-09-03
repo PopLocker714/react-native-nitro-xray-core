@@ -4,6 +4,7 @@
 import Foundation
 import NetworkExtension
 import NitroModules
+import WidgetKit
 
 /// Bundle ID of the Packet Tunnel Extension target.
 /// Must match the bundle identifier set in Xcode for the "tunnel" target.
@@ -11,10 +12,37 @@ private var kTunnelBundleID: String {
     return Bundle.main.bundleIdentifier! + ".tunnel"
 }
 
-/// App Group shared between the main app and the extension.
-/// Used to pass the Xray JSON config via shared UserDefaults.
+/// App Group shared between the main app and its extensions.
+///
+/// Derived from the app's bundle id by default, but overridable through the
+/// `NitroXrayAppGroup` Info.plist key. The override is what makes the group
+/// usable from an EXTENSION: there `Bundle.main` is the appex, so deriving
+/// would yield `group.<app>.widget` and silently address a container nobody
+/// writes to. A widget or Control Center target sets the key in its own
+/// Info.plist and both sides then agree.
 private var kAppGroup: String {
-    return "group." + Bundle.main.bundleIdentifier!
+    if let override = Bundle.main.object(forInfoDictionaryKey: "NitroXrayAppGroup") as? String,
+       !override.isEmpty {
+        return override
+    }
+    return "group." + (Bundle.main.bundleIdentifier ?? "")
+}
+
+/// Keys mirrored into the App Group for process-external surfaces to read.
+///
+/// A widget extension cannot observe `NEVPNStatus`: that requires owning the
+/// tunnel manager, and only the app process does. So the app publishes what it
+/// sees, and the widget renders from the mirror instead of guessing.
+enum XraySharedState {
+    /// Last state string the app emitted — same vocabulary as `XrayState` in JS.
+    static let stateKey = "nitro_xray_state"
+    /// When it was written, as a Unix timestamp. A widget can use it to decide
+    /// whether the mirror is stale enough to distrust.
+    static let updatedAtKey = "nitro_xray_state_at"
+    /// The `ConnectionInfo` JSON last recorded by the client — same shape as
+    /// `getConnectionInfo()`. Mirrored here because a widget cannot read the
+    /// app's own UserDefaults container.
+    static let connectionInfoKey = "nitro_xray_connection_info"
 }
 
 /// UserDefaults key for the VPN config JSON (legacy App Group fallback)
@@ -233,7 +261,23 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         // so subscribers don't get a storm of identical 'connected' events.
         if s == lastEmittedState { return }
         lastEmittedState = s
+        publishSharedState(s)
         self.stateCallback?(s, "")
+    }
+
+    /// Mirror the state into the App Group and nudge WidgetKit to redraw.
+    ///
+    /// Deliberately fire-and-forget: a widget that is not installed, or an App
+    /// Group that is not configured, must not affect the app's own state
+    /// delivery. Reloading timelines is cheap and idempotent when no widget
+    /// exists.
+    private func publishSharedState(_ state: String) {
+        guard let defaults = UserDefaults(suiteName: kAppGroup) else { return }
+        defaults.set(state, forKey: XraySharedState.stateKey)
+        defaults.set(Date().timeIntervalSince1970, forKey: XraySharedState.updatedAtKey)
+        if #available(iOS 14.0, *) {
+            WidgetCenter.shared.reloadAllTimelines()
+        }
     }
 
     // MARK: - hasVpnPermission
@@ -283,6 +327,30 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
     func isVpnConnected() throws -> Bool {
         guard let mgr = manager else { return false }
         return mgr.connection.status == .connected
+    }
+
+    // MARK: - isEngineRunning
+
+    // On iOS the Go core runs inside the Network Extension and dies with its
+    // tunnel, so there is no equivalent of Android's kill-switch hold (an
+    // established interface with a dead engine). The two flags are the same
+    // fact here.
+    func isEngineRunning() throws -> Bool {
+        return try isVpnConnected()
+    }
+
+    // MARK: - quick connect
+
+    // Android-only concept. There a widget or tile runs in a cold process and
+    // has to replay a stored config to start the tunnel; on iOS the equivalent
+    // job is done by the system's on-demand rules against an already-saved
+    // profile, so there is nothing to store and nothing to enable.
+    func setQuickConnectEnabled(enabled: Bool) throws {
+        // no-op on iOS
+    }
+
+    func isQuickConnectReady() throws -> Bool {
+        return false
     }
 
     // MARK: - requestNotificationPermission
@@ -471,7 +539,13 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
                     mgr.isOnDemandEnabled = false
                 }
                 if let proto = mgr.protocolConfiguration as? NETunnelProviderProtocol {
-                    proto.includeAllNetworks = enabled
+                    // Same carve-out as loadOrCreateManager: includeAllNetworks
+                    // captures olcrtc's own WebRTC connection and loops it. This
+                    // used to be an unconditional `= enabled`, which silently
+                    // undid the carve-out loadOrCreateManager had just computed
+                    // one call earlier — and setKillSwitch(true) runs right after
+                    // a successful bypass and again on every app launch.
+                    proto.includeAllNetworks = enabled && !self.usingOlcrtc()
                     proto.excludeLocalNetworks = true
                 }
                 mgr.isEnabled = true
@@ -596,6 +670,23 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         timer.resume()
     }
 
+    /// Is the next (or last) tunnel an olcrtc one?
+    ///
+    /// `pendingOlcrtcConfig` alone is not enough: it lives in memory and is nil
+    /// in a fresh process, so an app relaunch (or any setKillSwitch call before
+    /// startOlcrtc) would rewrite the profile as if olcrtc were not in play and
+    /// switch includeAllNetworks back on. The persisted config is the durable
+    /// answer — it carries the embedded "olcrtc" block, and it is exactly what
+    /// the extension reads when it starts without options.
+    private func usingOlcrtc() -> Bool {
+        if pendingOlcrtcConfig != nil { return true }
+        let stored = XrayKeychain.load() ?? UserDefaults(suiteName: kAppGroup)?.string(forKey: kConfigKey)
+        guard let data = stored?.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return false }
+        return obj["olcrtc"] != nil
+    }
+
     /// If an olcrtc client config is armed, inject it as the config's top-level
     /// "olcrtc" block so the NE starts olcrtc before xray. Returns the config
     /// unchanged when nothing is armed or JSON handling fails.
@@ -624,6 +715,21 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
             UserDefaults.standard.removeObject(forKey: Self.kConnectionInfoKey)
         } else {
             UserDefaults.standard.set(json, forKey: Self.kConnectionInfoKey)
+        }
+        // Mirror into the App Group as well, so process-external surfaces can
+        // read it. A widget cannot see UserDefaults.standard — that container
+        // belongs to the app — and it needs this to know whether the stored
+        // connection chains through olcrtc: on iOS the side-channel is started
+        // by the APP handing its params to the Network Extension, so a tunnel
+        // brought up without the app running has no bypass behind it. The
+        // widget uses this to send the user into the app instead of starting a
+        // tunnel that would come up empty.
+        if let shared = UserDefaults(suiteName: kAppGroup) {
+            if json.isEmpty {
+                shared.removeObject(forKey: XraySharedState.connectionInfoKey)
+            } else {
+                shared.set(json, forKey: XraySharedState.connectionInfoKey)
+            }
         }
     }
 
@@ -686,8 +792,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
             // includeAllNetworks off whenever olcrtc is in use. On-demand still
             // applies (auto-reconnect); we only drop the fail-closed part, which
             // is unavoidable for olcrtc on iOS.
-            let usingOlcrtc = self.pendingOlcrtcConfig != nil
-            proto.includeAllNetworks = killSwitch && !usingOlcrtc
+            proto.includeAllNetworks = killSwitch && !self.usingOlcrtc()
             proto.excludeLocalNetworks = true
 
             mgr.protocolConfiguration = proto

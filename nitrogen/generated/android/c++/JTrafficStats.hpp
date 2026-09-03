@@ -17,7 +17,7 @@ namespace margelo::nitro::nitroxraycore {
   using namespace facebook;
 
   /**
-   * The C++ JNI bridge between the C++ struct "TrafficStats" and the the Kotlin data class "TrafficStats".
+   * The C++ JNI bridge between the C++ struct "TrafficStats" and the Kotlin data class "TrafficStats".
    */
   struct JTrafficStats final: public jni::JavaClass<JTrafficStats> {
   public:

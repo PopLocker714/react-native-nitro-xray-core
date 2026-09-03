@@ -38,8 +38,12 @@ Device-verified on **Android** and **iOS** (Network Extension).
   links, base64 subscriptions, and the `subscription-userinfo` quota/expiry header.
 - **Typed config builder** — a parsed server → a full Xray JSON config. Raw JSON
   stays available as an escape hatch.
-- **State + traffic stats** — `connecting/connected/reconnecting/error` events and
-  session-continuous up/down counters that survive server switches.
+- **State + traffic stats** — `connecting/connected/reconnecting/error/blocked`
+  events and session-continuous up/down counters that survive server switches.
+- **Tunnel-continuous server switching (Android)** — switching servers reuses the
+  established TUN instead of building a second one, so the interface, its routes
+  and the system VPN key icon never blink, and a failed switch can no longer
+  strand the user behind a dead tunnel.
 - **olcrtc readiness events** — on iOS `connected` fires before the WebRTC
   side-channel can carry traffic; the tunnel reports `proxy-connecting` →
   `proxy-ready` / `proxy-failed` so the UI can show "establishing bypass…".
@@ -56,6 +60,27 @@ Device-verified on **Android** and **iOS** (Network Extension).
   button, translatable at runtime.
 - **Configurable VPN name** (iOS) — brand the profile shown in Settings → VPN.
 - **olcrtc bypass** — WebRTC side-channel, chained or standalone. Android + iOS.
+
+## Read this before you ship
+
+**[docs/INTEGRATION.md](docs/INTEGRATION.md)** ([по-русски](docs/INTEGRATION.ru.md)) — the state
+machine, what each platform actually emits, and the mistakes that cost users their internet.
+
+**[docs/WIDGETS.md](docs/WIDGETS.md)** ([по-русски](docs/WIDGETS.ru.md)) — home-screen widgets.
+A widget runs when your JS does not, and both platforms punish that differently: WidgetKit
+redraws once per tap, Android drops background vibrations, and a bypass config replayed without
+its other half raises a tunnel pointing at nothing.
+
+A VPN client fails differently from a normal app: get state handling wrong and the user is left
+with a tunnel they cannot turn off. Three things catch everyone:
+
+- `blocked` (Android) is a **live tunnel with a dead engine**, deliberately held by the kill
+  switch. Render it as an error whose only action is "Connect" and the user has no working
+  network and no way out. Offer Disconnect.
+- The state stream **does not replay**. Subscribe before you connect, and reconcile with
+  `isConnected()` / `isEngineRunning()` on cold start and on foreground.
+- The platforms **do not emit the same states**. Android never sends `reconnecting`; iOS never
+  sends `error` or `blocked`.
 
 ## Installation
 
@@ -214,14 +239,46 @@ XrayClient.setVpnName('My VPN');   // shown in iOS Settings → VPN. Android: no
 - `disconnect()` / `isConnected()`
 - `currentConnection()` → `ConnectionInfo | null` — what's connected (persisted)
 - `onState(listener)` → unsubscribe fn. States: `disconnected / connecting /
-  connected / reconnecting / disconnecting / error`. The `message` arg carries
-  olcrtc sub-state on `connected`: `proxy-connecting / proxy-ready / proxy-failed`.
+  connected / reconnecting / disconnecting / error / blocked`. The `message` arg
+  carries olcrtc sub-state on `connected`: `proxy-connecting / proxy-ready /
+  proxy-failed`.
+
+  The stream reports transitions and never replays, so subscribe before you
+  connect. The platforms differ: Android never emits `reconnecting`, iOS never
+  emits `error` or `blocked`. Full table in
+  [docs/INTEGRATION.md](docs/INTEGRATION.md).
+
+  `blocked` (Android) is not an error. A start or restart failed while a tunnel
+  was already up and the kill switch was on, so the tunnel is deliberately held
+  with nothing behind it and every packet is dropped. The user keeps a VPN key
+  icon and no working network until the tunnel is released. Render it as
+  "traffic blocked" with a **Disconnect** action, never as "disconnected" and
+  never as an error whose only action is Connect. Note that
+  `setKillSwitch(false)` does not release a held tunnel; only a stop or a
+  successful reconnect does.
+- `isConnected()` reports whether the tunnel INTERFACE is up, not whether the
+  engine is running. On Android it therefore stays `true` across a server switch
+  (the tunnel is never dropped) and during a `blocked` hold; on iOS a switch
+  restarts the Network Extension tunnel, so it briefly goes `false`.
+- `isEngineRunning()` reports whether the proxy engine is running behind the
+  tunnel. `isConnected() && !isEngineRunning()` is how a reloaded JS context
+  recovers `blocked` — read it on cold start and on foreground, never in a poll
+  (it is also briefly true while an engine is starting). iOS returns the same
+  value as `isConnected()`: there the engine cannot outlive its tunnel.
 
 **Stats & info**
 - `stats(tag?)` → session-continuous `{ uplink, downlink }` (rejects
   `STATS_UNAVAILABLE` if connected but the stats pipeline is broken)
 - `statsRaw(tag?)` → raw per-engine counters
-- `version()` — Xray-core version (iOS: populated after the first connect)
+- `version()` — Xray-core version as reported by the running engine, `''` when it cannot be asked (iOS: only after the first connect)
+- `coreVersions()` — versions of every native core in this build, never empty:
+  ```ts
+  XrayClient.coreVersions()
+  // { xray: '26.3.27', xrayModule: 'v1.260327.0',
+  //   olcrtc: '1255cf8', olcrtcModule: 'v0.0.0-20260704192300-1255cf8248ee',
+  //   olcrtcDate: '2026-07-04' }
+  ```
+  `xray` prefers the running engine and falls back to the version compiled into the shipped binary, so it has the same shape before and after a connect. olcrtc exposes no runtime version symbol (and on iOS it runs inside the tunnel, not the app), so it is identified by the pinned upstream commit. The values are extracted from the binaries' Go build-info at build time by `scripts/gen-core-versions.ts`, which fails the build if the four shipped artifacts disagree.
 - `urlTest(servers, options?)` → latency-sorted results
 
 **Errors** — mutating calls reject with `XrayError { code, retryable, message }`.

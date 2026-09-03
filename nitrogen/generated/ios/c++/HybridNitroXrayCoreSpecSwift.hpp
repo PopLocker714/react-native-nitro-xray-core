@@ -106,6 +106,28 @@ namespace margelo::nitro::nitroxraycore {
       auto __value = std::move(__result.value());
       return __value;
     }
+    inline bool isEngineRunning() override {
+      auto __result = _swiftPart.isEngineRunning();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
+    inline void setQuickConnectEnabled(bool enabled) override {
+      auto __result = _swiftPart.setQuickConnectEnabled(std::forward<decltype(enabled)>(enabled));
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+    }
+    inline bool isQuickConnectReady() override {
+      auto __result = _swiftPart.isQuickConnectReady();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
     inline std::string getVersion() override {
       auto __result = _swiftPart.getVersion();
       if (__result.hasError()) [[unlikely]] {

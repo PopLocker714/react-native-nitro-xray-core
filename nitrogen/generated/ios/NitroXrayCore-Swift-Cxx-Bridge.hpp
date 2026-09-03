@@ -235,6 +235,15 @@ namespace margelo::nitro::nitroxraycore::bridge::swift {
     return Result<bool>::withError(error);
   }
   
+  // pragma MARK: Result<void>
+  using Result_void_ = Result<void>;
+  inline Result_void_ create_Result_void_() noexcept {
+    return Result<void>::withValue();
+  }
+  inline Result_void_ create_Result_void_(const std::exception_ptr& error) noexcept {
+    return Result<void>::withError(error);
+  }
+  
   // pragma MARK: Result<std::string>
   using Result_std__string_ = Result<std::string>;
   inline Result_std__string_ create_Result_std__string_(const std::string& value) noexcept {
@@ -251,15 +260,6 @@ namespace margelo::nitro::nitroxraycore::bridge::swift {
   }
   inline Result_std__shared_ptr_Promise_TrafficStats___ create_Result_std__shared_ptr_Promise_TrafficStats___(const std::exception_ptr& error) noexcept {
     return Result<std::shared_ptr<Promise<TrafficStats>>>::withError(error);
-  }
-  
-  // pragma MARK: Result<void>
-  using Result_void_ = Result<void>;
-  inline Result_void_ create_Result_void_() noexcept {
-    return Result<void>::withValue();
-  }
-  inline Result_void_ create_Result_void_(const std::exception_ptr& error) noexcept {
-    return Result<void>::withError(error);
   }
   
   // pragma MARK: Result<double>

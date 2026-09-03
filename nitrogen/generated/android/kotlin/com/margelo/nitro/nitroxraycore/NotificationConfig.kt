@@ -9,6 +9,7 @@ package com.margelo.nitro.nitroxraycore
 
 import androidx.annotation.Keep
 import com.facebook.proguard.annotations.DoNotStrip
+import java.util.Objects
 
 
 /**
@@ -34,6 +35,26 @@ data class NotificationConfig(
   val channelName: String?
 ) {
   /* primary constructor */
+
+  override fun equals(other: Any?): Boolean {
+    if (this === other) return true
+    if (other !is NotificationConfig) return false
+    return Objects.deepEquals(this.title, other.title)
+      && Objects.deepEquals(this.text, other.text)
+      && Objects.deepEquals(this.disconnectLabel, other.disconnectLabel)
+      && Objects.deepEquals(this.blockedText, other.blockedText)
+      && Objects.deepEquals(this.channelName, other.channelName)
+  }
+
+  override fun hashCode(): Int {
+    return arrayOf<Any?>(
+      title,
+      text,
+      disconnectLabel,
+      blockedText,
+      channelName
+    ).contentDeepHashCode()
+  }
 
   companion object {
     /**

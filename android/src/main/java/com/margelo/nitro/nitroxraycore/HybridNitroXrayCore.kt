@@ -20,8 +20,33 @@ import kotlin.coroutines.resume
 @Keep
 @DoNotStrip
 class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
+    companion object {
+        /**
+         * How long `stopXray` waits for the service to report the tunnel down
+         * before giving up and resolving anyway. Generous enough to cover a
+         * teardown queued behind an in-flight connect, short enough that a
+         * wedged service can never freeze the app's disconnect button.
+         */
+        private const val STOP_TIMEOUT_MS = 7_000L
+    }
+
     override fun isVpnConnected(): Boolean {
         return com.nitroxraycore.XrayVpnService.isRunning
+    }
+
+    override fun isEngineRunning(): Boolean {
+        return com.nitroxraycore.XrayVpnService.isEngineRunning
+    }
+
+    override fun setQuickConnectEnabled(enabled: Boolean) {
+        val context = NitroModules.applicationContext ?: return
+        com.nitroxraycore.QuickConnectStore.setEnabled(context, enabled)
+        Log.i("NitroXrayCore", "Quick connect ${if (enabled) "enabled" else "disabled"}")
+    }
+
+    override fun isQuickConnectReady(): Boolean {
+        val context = NitroModules.applicationContext ?: return false
+        return com.nitroxraycore.QuickConnectStore.isReady(context)
     }
 
     override fun hasVpnPermission(): Promise<Boolean> {
@@ -90,7 +115,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
 
     override fun getVersion(): String {
         return try {
-            XrayEngine.getVersion()
+            XrayEngine.version()
         } catch (e: Throwable) {
             Log.e("NitroXrayCore", "getVersion failed", e)
             ""
@@ -99,14 +124,16 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
 
     override fun getStats(outboundTag: String): Promise<TrafficStats> {
         return Promise.async {
-            // Not running = genuinely no traffic. Distinguish that from a broken
+            // No engine = genuinely no traffic. Distinguish that from a broken
             // stats pipeline while connected, which rejects (M6) so callers don't
-            // mistake a failure for a real 0-bytes idle.
-            if (!com.nitroxraycore.XrayVpnService.isRunning) {
+            // mistake a failure for a real 0-bytes idle. Keyed on the ENGINE, not
+            // on the tunnel: during a kill-switch hold the TUN is up but the
+            // engine is dead, and there is nothing to query.
+            if (!com.nitroxraycore.XrayVpnService.isEngineRunning) {
                 return@async TrafficStats(0.0, 0.0)
             }
             try {
-                val json = XrayEngine.queryStats(outboundTag)
+                val json = XrayEngine.stats(outboundTag)
                 val obj = JSONObject(json)
                 TrafficStats(
                     obj.optLong("uplink", 0L).toDouble(),
@@ -134,7 +161,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
             // so the JS Promise reflects actual success/failure rather than
             // merely "service dispatched".
             suspendCancellableCoroutine<Unit> { continuation ->
-                XrayStateBus.setPendingStart { success, error ->
+                val token = XrayStateBus.setPendingStart { success, error ->
                     if (success) {
                         continuation.resume(Unit)
                     } else {
@@ -150,7 +177,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
                 try {
                     context.startService(intent)
                 } catch (e: Throwable) {
-                    XrayStateBus.resolveStart(false, e.message ?: "startService failed")
+                    XrayStateBus.resolveStart(token, false, e.message ?: "startService failed")
                 }
             }
         }
@@ -179,7 +206,33 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
             val intent = Intent(context, com.nitroxraycore.XrayVpnService::class.java).apply {
                 action = "ACTION_STOP"
             }
-            context.startService(intent)
+
+            // Suspend until the service reports the tunnel is actually down,
+            // symmetrically with startXray. Resolving on "intent dispatched"
+            // (what this used to do) made every `await disconnect()` a lie:
+            // callers sequenced work after it while the TUN was still up, and
+            // the app had to poll a flag that was cleared before any teardown
+            // even began. The service settles this the moment the descriptor is
+            // closed and the notification is gone — the slow engine shutdown
+            // runs after and nobody waits on it.
+            val settled = kotlinx.coroutines.withTimeoutOrNull(STOP_TIMEOUT_MS) {
+                suspendCancellableCoroutine<Unit> { continuation ->
+                    XrayStateBus.setPendingStop {
+                        if (continuation.isActive) continuation.resume(Unit)
+                    }
+                    try {
+                        context.startService(intent)
+                    } catch (e: Throwable) {
+                        Log.w("NitroXrayCore", "startService(STOP) failed", e)
+                        if (continuation.isActive) continuation.resume(Unit)
+                    }
+                }
+            }
+            if (settled == null) {
+                // Never hang a disconnect: the user asked to stop, and the UI
+                // has to move on even if the service is wedged.
+                Log.w("NitroXrayCore", "stopXray: no teardown report within ${STOP_TIMEOUT_MS}ms")
+            }
         }
     }
 
@@ -193,7 +246,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
             // StartOlcrtc blocks until the SOCKS listener is ready (WaitReady),
             // so run it off the calling thread.
             val result = withContext(Dispatchers.IO) {
-                XrayEngine.startOlcrtc(configJson)
+                XrayEngine.startBypass(configJson)
             }
             if (result != 0) {
                 // "CODE|message" — the JS client parses the prefix into a typed
@@ -206,20 +259,20 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
                 }
                 throw Exception(reason)
             }
-            Log.i("NitroXrayCore", "olcrtc started, SOCKS port ${XrayEngine.getOlcrtcSocksPort()}")
+            Log.i("NitroXrayCore", "olcrtc started, SOCKS port ${XrayEngine.bypassSocksPort()}")
         }
     }
 
     override fun stopOlcrtc(): Promise<Unit> {
         return Promise.async {
-            withContext(Dispatchers.IO) { XrayEngine.stopOlcrtc() }
+            withContext(Dispatchers.IO) { XrayEngine.stopBypass() }
             Log.i("NitroXrayCore", "olcrtc stopped")
         }
     }
 
     override fun getOlcrtcSocksPort(): Double {
         return try {
-            XrayEngine.getOlcrtcSocksPort().toDouble()
+            XrayEngine.bypassSocksPort().toDouble()
         } catch (e: Throwable) {
             Log.e("NitroXrayCore", "getOlcrtcSocksPort failed", e)
             0.0
@@ -228,7 +281,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
 
     override fun isOlcrtcRunning(): Boolean {
         return try {
-            XrayEngine.isOlcrtcRunning() != 0
+            XrayEngine.isBypassRunning()
         } catch (e: Throwable) {
             Log.e("NitroXrayCore", "isOlcrtcRunning failed", e)
             false

@@ -22,6 +22,10 @@ export type {
   SubscriptionInfo,
 } from './subscription/types'
 
+// Native core versions (Xray-core + olcrtc), generated from the shipped binaries
+export { CORE_VERSIONS } from './generated/core-versions'
+export type { CoreVersions } from './generated/core-versions'
+
 // Session-continuous traffic accounting (pure logic)
 export { TrafficSession } from './stats/session'
 

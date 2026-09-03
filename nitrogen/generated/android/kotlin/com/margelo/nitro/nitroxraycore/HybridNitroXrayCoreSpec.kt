@@ -47,6 +47,18 @@ abstract class HybridNitroXrayCoreSpec: HybridObject() {
   
   @DoNotStrip
   @Keep
+  abstract fun isEngineRunning(): Boolean
+  
+  @DoNotStrip
+  @Keep
+  abstract fun setQuickConnectEnabled(enabled: Boolean): Unit
+  
+  @DoNotStrip
+  @Keep
+  abstract fun isQuickConnectReady(): Boolean
+  
+  @DoNotStrip
+  @Keep
   abstract fun getVersion(): String
   
   @DoNotStrip

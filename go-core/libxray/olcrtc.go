@@ -8,6 +8,7 @@ import "C"
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 
 	"github.com/openlibrecommunity/olcrtc/mobile"
 )
@@ -54,7 +55,30 @@ type olcrtcConfig struct {
 // same C logger main.go uses), so pion/ICE/KCP diagnostics are visible.
 type olcrtcLogWriter struct{}
 
-func (olcrtcLogWriter) WriteLog(msg string) { logInfo("olcrtc: " + msg) }
+func (olcrtcLogWriter) WriteLog(msg string) { logInfo("olcrtc: " + redactSecrets(msg)) }
+
+// jwtPattern ловит JWT в любом месте строки: три base64url-сегмента через точки.
+var jwtPattern = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}`)
+
+// hexSecretPattern ловит длинные шестнадцатеричные строки — ключи комнат и
+// подобное. 32 символа и длиннее: короче встречаются легитимные идентификаторы.
+var hexSecretPattern = regexp.MustCompile(`\b[0-9a-fA-F]{32,}\b`)
+
+// redactSecrets вырезает секреты из строк лога olcrtc.
+//
+// Библиотека печатает в info полученный гостевой токен несущего целиком
+// ("obtained guest access token, reuse it via auth.token ..."). Системный лог
+// Android читается любым процессом с READ_LOGS и попадает в баг-репорты, а
+// токен даёт доступ к комнатам от имени аккаунта. Токен временный, но месту в
+// логе это его не оправдывает.
+//
+// Фильтруем здесь, потому что это ЕДИНСТВЕННАЯ точка, через которую логи
+// olcrtc попадают в logcat: патчить саму библиотеку мы не можем, она приходит
+// зависимостью.
+func redactSecrets(msg string) string {
+	msg = jwtPattern.ReplaceAllString(msg, "<токен скрыт>")
+	return hexSecretPattern.ReplaceAllString(msg, "<секрет скрыт>")
+}
 
 const defaultOlcrtcSocksPort = 10808
 

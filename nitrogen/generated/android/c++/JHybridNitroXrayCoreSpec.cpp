@@ -110,6 +110,20 @@ namespace margelo::nitro::nitroxraycore {
     auto __result = method(_javaPart);
     return static_cast<bool>(__result);
   }
+  bool JHybridNitroXrayCoreSpec::isEngineRunning() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jboolean()>("isEngineRunning");
+    auto __result = method(_javaPart);
+    return static_cast<bool>(__result);
+  }
+  void JHybridNitroXrayCoreSpec::setQuickConnectEnabled(bool enabled) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void(jboolean /* enabled */)>("setQuickConnectEnabled");
+    method(_javaPart, enabled);
+  }
+  bool JHybridNitroXrayCoreSpec::isQuickConnectReady() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jboolean()>("isQuickConnectReady");
+    auto __result = method(_javaPart);
+    return static_cast<bool>(__result);
+  }
   std::string JHybridNitroXrayCoreSpec::getVersion() {
     static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<jni::JString>()>("getVersion");
     auto __result = method(_javaPart);

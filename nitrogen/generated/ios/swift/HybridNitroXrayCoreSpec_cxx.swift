@@ -194,6 +194,41 @@ open class HybridNitroXrayCoreSpec_cxx {
   }
   
   @inline(__always)
+  public final func isEngineRunning() -> bridge.Result_bool_ {
+    do {
+      let __result = try self.__implementation.isEngineRunning()
+      let __resultCpp = __result
+      return bridge.create_Result_bool_(__resultCpp)
+    } catch (let __error) {
+      let __exceptionPtr = __error.toCpp()
+      return bridge.create_Result_bool_(__exceptionPtr)
+    }
+  }
+  
+  @inline(__always)
+  public final func setQuickConnectEnabled(enabled: Bool) -> bridge.Result_void_ {
+    do {
+      try self.__implementation.setQuickConnectEnabled(enabled: enabled)
+      return bridge.create_Result_void_()
+    } catch (let __error) {
+      let __exceptionPtr = __error.toCpp()
+      return bridge.create_Result_void_(__exceptionPtr)
+    }
+  }
+  
+  @inline(__always)
+  public final func isQuickConnectReady() -> bridge.Result_bool_ {
+    do {
+      let __result = try self.__implementation.isQuickConnectReady()
+      let __resultCpp = __result
+      return bridge.create_Result_bool_(__resultCpp)
+    } catch (let __error) {
+      let __exceptionPtr = __error.toCpp()
+      return bridge.create_Result_bool_(__exceptionPtr)
+    }
+  }
+  
+  @inline(__always)
   public final func getVersion() -> bridge.Result_std__string_ {
     do {
       let __result = try self.__implementation.getVersion()

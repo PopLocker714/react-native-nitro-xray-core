@@ -23,6 +23,50 @@ object NotificationConfigStore {
     const val DEFAULT_BLOCKED = "Kill switch: traffic blocked"
     const val DEFAULT_CHANNEL = "VPN"
 
+    /**
+     * Живое описание подключения для подстановки в `{connection}`.
+     *
+     * Берётся из `connection_info`, который клиент пишет при каждом
+     * подключении, — отдельного API не нужно. Порядок предпочтений: явный
+     * `label`, затем тег сервера. Для подключения без сервера (только обход)
+     * тега нет, поэтому потребителю стоит передавать `label`.
+     *
+     * Возвращает null, когда подставлять нечего: тогда текст остаётся как есть.
+     */
+    fun connectionLabel(context: Context): String? {
+        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString("connection_info", null) ?: return null
+        return try {
+            val obj = org.json.JSONObject(raw)
+            val label = obj.optString("label").takeIf { it.isNotBlank() }
+            val tag = obj.optJSONObject("server")?.optString("tag")?.takeIf { it.isNotBlank() }
+            label ?: tag
+        } catch (e: Throwable) {
+            null
+        }
+    }
+
+    /**
+     * Подставить живое описание подключения в текст уведомления.
+     *
+     * Шаблон, а не новое поле в спеке: добавление поля потребовало бы прогона
+     * кодогенерации Nitro и обновления всех потребителей. Плейсхолдера в тексте
+     * нет — поведение ровно прежнее, поэтому обратная совместимость полная.
+     */
+    fun applyConnection(context: Context, text: String): String {
+        if (!text.contains(PLACEHOLDER)) return text
+        val label = connectionLabel(context)
+        return if (label != null) {
+            text.replace(PLACEHOLDER, label)
+        } else {
+            // Нечего подставить — убираем плейсхолдер вместе с висящими
+            // разделителями, иначе в шторке останется «Подключено: ».
+            text.replace(PLACEHOLDER, "").trim().trimEnd(':', '—', '-', ',', '·', '•', '|').trim()
+        }
+    }
+
+    const val PLACEHOLDER = "{connection}"
+
     fun set(
         context: Context,
         title: String?,

@@ -18,7 +18,7 @@ namespace margelo::nitro::nitroxraycore {
   using namespace facebook;
 
   /**
-   * The C++ JNI bridge between the C++ struct "NotificationConfig" and the the Kotlin data class "NotificationConfig".
+   * The C++ JNI bridge between the C++ struct "NotificationConfig" and the Kotlin data class "NotificationConfig".
    */
   struct JNotificationConfig final: public jni::JavaClass<JNotificationConfig> {
   public:

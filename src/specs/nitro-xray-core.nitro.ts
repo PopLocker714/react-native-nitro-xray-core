@@ -14,7 +14,8 @@ export interface TrafficStats {
  * Kept as a plain string (not a native enum) so the value stays stable
  * across the JS/native boundary and is trivial to extend.
  *
- * One of: 'disconnected' | 'connecting' | 'connected' | 'disconnecting' | 'error'
+ * One of: 'disconnected' | 'connecting' | 'connected' | 'disconnecting' |
+ * 'error' | 'reconnecting' | 'blocked'
  */
 export type XrayState =
   | 'disconnected'
@@ -25,6 +26,17 @@ export type XrayState =
   /** iOS: the tunnel is re-establishing after a network change (Wi-Fi↔cellular),
    *  distinct from a fresh 'connecting'. Android has no equivalent event. */
   | 'reconnecting'
+  /**
+   * Android: the engine failed while the kill switch was on, so the tunnel is
+   * deliberately held with nothing behind it and every packet is dropped.
+   *
+   * Distinct from 'error' on purpose. 'error' means "we failed and your traffic
+   * is on the open network"; 'blocked' means "we failed and your traffic is
+   * being withheld" — the user still has a VPN key icon, no working network,
+   * and the only way out is an explicit disconnect. A UI that renders this as a
+   * plain error will offer Connect where it must offer Disconnect.
+   */
+  | 'blocked'
 
 /**
  * Text for the persistent foreground VPN notification (Android). All fields are
@@ -49,9 +61,63 @@ export interface NitroXrayCore extends HybridObject<{ ios: 'swift', android: 'ko
   hasVpnPermission(): Promise<boolean>
   requestVpnPermission(): Promise<void>
   requestNotificationPermission(): Promise<boolean>
+  /**
+   * Whether this app is currently capturing traffic — i.e. the tunnel
+   * interface is established.
+   *
+   * It tracks the INTERFACE, not the engine, so it stays true across a server
+   * switch (the tunnel is never dropped) and during a kill-switch hold (the
+   * tunnel is held on purpose with a dead engine). Use the state stream to
+   * tell those apart: 'connected' vs 'blocked'.
+   */
   isVpnConnected(): boolean
 
-  /** Xray-core version string (e.g. "1.8.24"). */
+  /**
+   * Whether the proxy engine is actually running behind the tunnel.
+   *
+   * Differs from {@link isVpnConnected} in exactly one situation, and that
+   * situation is the whole reason it exists: on Android a kill-switch hold
+   * keeps the tunnel established with a dead engine, so traffic is captured and
+   * dropped. `isVpnConnected() && !isEngineRunning()` is therefore the
+   * native-side definition of the `blocked` state, and the only way to recover
+   * it after a JS reload — without this, a restarted UI reads "tunnel up" and
+   * cheerfully reports a healthy connection over a blackhole.
+   *
+   * iOS: identical to {@link isVpnConnected} — the engine lives inside the
+   * Network Extension and cannot outlive its tunnel.
+   */
+  isEngineRunning(): boolean
+
+  /**
+   * Opt in to storing the last successful connection so it can be brought back
+   * up from OUTSIDE the JS runtime — a home-screen widget, a Quick Settings
+   * tile, a shortcut. Those run in a cold process where React Native is not
+   * loaded, so they cannot build a config and can only replay one.
+   *
+   * Off by default, and opt-in on purpose: an Xray config carries the server
+   * credential, so enabling this puts a secret at rest in the app's private
+   * storage. An app with no such entry point should never pay that cost.
+   * Disabling wipes what was stored.
+   *
+   * Android only. iOS: no-op — there the tunnel is brought back by the system's
+   * on-demand rules rather than by a process-external toggle.
+   */
+  setQuickConnectEnabled(enabled: boolean): void
+
+  /**
+   * Whether a one-tap reconnect is possible right now, i.e. the feature is
+   * enabled AND a connection has succeeded at least once since. Render a widget
+   * or tile as "open the app first" while this is false.
+   */
+  isQuickConnectReady(): boolean
+
+  /**
+   * Xray-core version string as reported by the engine, e.g. "26.3.27"
+   * (XTLS switched to a date-derived scheme; the Go module tag for the same
+   * release is "v1.260327.0"). Empty string when the engine is unreachable —
+   * on iOS the core lives in the Network Extension, so this is only populated
+   * after the first connect.
+   */
   getVersion(): string
 
   /**
