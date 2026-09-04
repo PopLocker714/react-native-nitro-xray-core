@@ -113,6 +113,18 @@ the refresh budget. Everything else is throttled into irrelevance:
 So: **do not return from `perform()` until the state is worth showing.** Return
 early and the guaranteed reload paints a transient state that then sticks.
 
+"Worth showing" means **terminal**, not merely informative. Returning on an
+intermediate state ("bringing up the bypass") looks reasonable and is the same
+bug in a nicer costume: the one free redraw goes to a caption that is already
+obsolete, and the truth waits on the budget. Measured on device: the extension
+asked for a reload 2.3 s after the tap, `chronod` logged that request as
+`budgeted`, and the widget changed only 34 s later — by timeline advance, not by
+the request. After the intent was made to wait for a terminal state, tap to
+final caption took 2.77 s.
+
+Size the wait against the real handshake time, and keep an optimistic future
+timeline entry as the fallback for when the wait times out.
+
 Never use `.never` here. Give terminal states an `.after(15 min)` floor so a
 tunnel that drops on its own eventually self-heals.
 
