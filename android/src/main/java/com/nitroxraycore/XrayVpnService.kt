@@ -158,7 +158,7 @@ class XrayVpnService : VpnService() {
         XrayStateBus.attachContext(this)
 
         val action = intent.action ?: ACTION_START
-        Log.i(TAG, "DIAG onStartCommand action=$action startId=$startId flags=$flags")
+        Log.d(TAG, "onStartCommand action=$action startId=$startId")
 
         if (action == ACTION_STOP) {
             Log.i(TAG, "Received STOP action")
@@ -185,9 +185,7 @@ class XrayVpnService : VpnService() {
                     // Settle the JS `disconnect()` here: обход уже погашен
                     // выше, туннель снят, показывать пользователю нечего.
                     XrayStateBus.resolveStop()
-                    Log.i(TAG, "DIAG calling stopSelf(startId=$startId)")
                     stopSelf(startId)
-                    Log.i(TAG, "DIAG stopSelf returned")
                 }
             }.start()
             return START_NOT_STICKY
@@ -506,7 +504,9 @@ class XrayVpnService : VpnService() {
         activeDnsServers = null
         isRunning = false
         isEngineRunning = false
-        Log.i(TAG, "DIAG dropTunnel pfd=" + (pfd?.fd?.toString() ?: "none") + " wedged=" + XrayEngine.isWedged)
+        // Номер fd и признак зависания — то, по чему в своё время нашли утечку
+        // дескриптора: движок продолжал крутиться на уже отданном fd.
+        Log.d(TAG, "dropTunnel pfd=" + (pfd?.fd?.toString() ?: "none") + " wedged=" + XrayEngine.isWedged)
         if (pfd != null) {
             // Зависший движок продолжает крутиться на этом НОМЕРЕ fd. Обычный
             // close вернул бы номер процессу, и следующий открытый сокет
@@ -565,7 +565,7 @@ class XrayVpnService : VpnService() {
     private fun stopEngineBounded() {
         isEngineRunning = false
         val r = XrayEngine.stopEngineBounded(ENGINE_STOP_TIMEOUT_MS)
-        Log.i(TAG, "DIAG stopEngineBounded -> $r")
+        Log.d(TAG, "stopEngineBounded -> $r")
     }
 
     /**
