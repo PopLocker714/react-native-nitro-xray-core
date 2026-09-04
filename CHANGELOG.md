@@ -1,3 +1,13 @@
+## [1.5.0](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.4.0...v1.5.0) (2026-09-04)
+
+### ✨ Features
+
+* **widget:** фоновый обход, живое имя в уведомлении, документация ([2e60f51](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/2e60f51d7c743596fc7924eb7444a8d8b266543a))
+
+### 📚 Documentation
+
+* **widgets:** перерисовка из расширения бюджетируется, ждать в perform() до устоявшегося состояния ([5f729e9](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/5f729e95039a6ced81104df630106cd3a2399f76))
+
 ## [1.4.0](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.3.1...v1.4.0) (2026-08-25)
 
 ### ✨ Features
