@@ -61,6 +61,7 @@ namespace margelo::nitro::nitroxraycore {
     bool isEngineRunning() override;
     void setQuickConnectEnabled(bool enabled) override;
     bool isQuickConnectReady() override;
+    std::shared_ptr<Promise<void>> clearStoredConfig() override;
     std::string getVersion() override;
     std::shared_ptr<Promise<void>> startXray(const std::string& configJson) override;
     std::shared_ptr<Promise<void>> stopXray() override;

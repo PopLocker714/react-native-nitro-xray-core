@@ -21,6 +21,7 @@ namespace margelo::nitro::nitroxraycore {
       prototype.registerHybridMethod("isEngineRunning", &HybridNitroXrayCoreSpec::isEngineRunning);
       prototype.registerHybridMethod("setQuickConnectEnabled", &HybridNitroXrayCoreSpec::setQuickConnectEnabled);
       prototype.registerHybridMethod("isQuickConnectReady", &HybridNitroXrayCoreSpec::isQuickConnectReady);
+      prototype.registerHybridMethod("clearStoredConfig", &HybridNitroXrayCoreSpec::clearStoredConfig);
       prototype.registerHybridMethod("getVersion", &HybridNitroXrayCoreSpec::getVersion);
       prototype.registerHybridMethod("startXray", &HybridNitroXrayCoreSpec::startXray);
       prototype.registerHybridMethod("stopXray", &HybridNitroXrayCoreSpec::stopXray);

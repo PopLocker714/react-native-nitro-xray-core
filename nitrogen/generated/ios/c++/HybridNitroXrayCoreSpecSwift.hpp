@@ -128,6 +128,14 @@ namespace margelo::nitro::nitroxraycore {
       auto __value = std::move(__result.value());
       return __value;
     }
+    inline std::shared_ptr<Promise<void>> clearStoredConfig() override {
+      auto __result = _swiftPart.clearStoredConfig();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
     inline std::string getVersion() override {
       auto __result = _swiftPart.getVersion();
       if (__result.hasError()) [[unlikely]] {

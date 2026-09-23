@@ -27,6 +27,27 @@ const ready = await XrayClient.isQuickConnectReady()
 Android stores the payload after every **successful** start, so a widget can
 never replay a config already known to fail.
 
+## Sign-out: disarm the widget
+
+Signing out of the app does not sign the widget out. The persisted config
+stays where the widget's cold start reads it, and on iOS the VPN profile stays
+installed — so a signed-out user can still raise the tunnel from the home
+screen. Wipe both:
+
+```ts
+await XrayClient.disconnect()
+await XrayClient.clearStoredConfig()
+```
+
+`clearStoredConfig()` forgets the persisted config (Keychain access group +
+App Group on iOS, `QuickConnectStore` on Android), drops the armed olcrtc
+params and, on iOS, removes the VPN profile. Removing the profile is what
+makes the widget fall into its "open the app" state — there is nothing left to
+toggle. The next `connect()` recreates the profile through
+`requestVpnPermission()`, so iOS asks for VPN permission once more. Sign-out is
+rare; that one prompt is the price of a widget that cannot connect on behalf
+of nobody.
+
 ### The bypass needs two halves
 
 If you offer an olcrtc bypass, note that its xray config dials

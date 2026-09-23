@@ -49,6 +49,19 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
         return com.nitroxraycore.QuickConnectStore.isReady(context)
     }
 
+    /**
+     * Forget the replayable config. On Android that is QuickConnectStore — the
+     * only place a process-external entry point (widget, tile) can start the
+     * tunnel from. It is opt-in and off by default, so this is usually a no-op;
+     * kept for symmetry with iOS, where the same call also removes the profile.
+     */
+    override fun clearStoredConfig(): Promise<Unit> {
+        return Promise.async {
+            val context = NitroModules.applicationContext ?: return@async
+            com.nitroxraycore.QuickConnectStore.clear(context)
+        }
+    }
+
     override fun hasVpnPermission(): Promise<Boolean> {
         return Promise.async {
             val context = NitroModules.applicationContext

@@ -237,6 +237,10 @@ XrayClient.setVpnName('My VPN');   // shown in iOS Settings → VPN. Android: no
 - `connect(server, options?)` — build config + start the tunnel
 - `startRaw(configJson)` — start from hand-written Xray JSON
 - `disconnect()` / `isConnected()`
+- `clearStoredConfig()` — forget everything a widget could bring the tunnel up
+  from: persisted config, armed olcrtc params and, on iOS, the VPN profile. Call
+  on sign-out after `disconnect()`; the next `connect()` asks for VPN permission
+  again on iOS. See [docs/WIDGETS.md](docs/WIDGETS.md#sign-out-disarm-the-widget).
 - `currentConnection()` → `ConnectionInfo | null` — what's connected (persisted)
 - `onState(listener)` → unsubscribe fn. States: `disconnected / connecting /
   connected / reconnecting / disconnecting / error / blocked`. The `message` arg

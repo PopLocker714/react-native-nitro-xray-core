@@ -59,6 +59,10 @@ abstract class HybridNitroXrayCoreSpec: HybridObject() {
   
   @DoNotStrip
   @Keep
+  abstract fun clearStoredConfig(): Promise<Unit>
+  
+  @DoNotStrip
+  @Keep
   abstract fun getVersion(): String
   
   @DoNotStrip

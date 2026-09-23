@@ -112,6 +112,21 @@ export interface NitroXrayCore extends HybridObject<{ ios: 'swift', android: 'ko
   isQuickConnectReady(): boolean
 
   /**
+   * Forget everything a process OUTSIDE the app could bring the tunnel up
+   * from: the persisted config (iOS Keychain access group + App Group, Android
+   * QuickConnectStore), the armed olcrtc params and, on iOS, the VPN profile
+   * itself. Call it on sign-out, after stopXray().
+   *
+   * Why the profile too. The home-screen widget starts the tunnel through
+   * NETunnelProviderManager directly, and the extension then reads the
+   * persisted config — the app is not involved at all. Wiping only the config
+   * leaves a profile that still toggles and fails, which looks broken. With no
+   * profile the widget shows its "open the app" state, and the next start
+   * recreates the profile through requestVpnPermission (one system prompt).
+   */
+  clearStoredConfig(): Promise<void>
+
+  /**
    * Xray-core version string as reported by the engine, e.g. "26.3.27"
    * (XTLS switched to a date-derived scheme; the Go module tag for the same
    * release is "v1.260327.0"). Empty string when the engine is unreachable —

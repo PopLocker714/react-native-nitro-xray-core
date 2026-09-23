@@ -356,6 +356,20 @@ export const XrayClient = {
   },
 
   /**
+   * Forget everything a process outside the app could bring the tunnel up
+   * from — persisted config, armed olcrtc params and, on iOS, the VPN profile
+   * itself. Call it on sign-out, after disconnect(). The next connect() on iOS
+   * asks for VPN permission again, because the profile is recreated.
+   */
+  async clearStoredConfig(): Promise<void> {
+    try {
+      await NitroXrayCore.clearStoredConfig()
+    } catch {
+      // older native build without the API — nothing it could have stored
+    }
+  },
+
+  /**
    * What the tunnel is currently connected to — server, protocol, mode, and
    * olcrtc params. Persisted natively, so it's correct even on a fresh app
    * launch when the tunnel was brought up by on-demand while the app was closed.

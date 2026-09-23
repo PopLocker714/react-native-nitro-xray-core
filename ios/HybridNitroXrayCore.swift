@@ -353,6 +353,47 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         return false
     }
 
+    // MARK: - clearStoredConfig
+
+    /// Forget everything a process outside the app could start the tunnel
+    /// from: the persisted config (Keychain access group + App Group), the
+    /// armed olcrtc params, and the VPN profile itself. Meant for sign-out.
+    ///
+    /// Why the profile too. The widget starts the tunnel through
+    /// NETunnelProviderManager directly and the extension reads the persisted
+    /// config — the app is not in the loop. With no profile the widget shows
+    /// its "open the app" state, and the next start recreates the profile via
+    /// requestVpnPermission (one system prompt). Resolves after the profile is
+    /// gone, so a caller can rely on the widget being disarmed.
+    func clearStoredConfig() throws -> Promise<Void> {
+        let promise = Promise<Void>()
+        pendingOlcrtcConfig = nil
+        XrayKeychain.clear()
+        UserDefaults(suiteName: kAppGroup)?.removeObject(forKey: kConfigKey)
+        publishSharedState("disconnected")
+        NETunnelProviderManager.loadAllFromPreferences { managers, _ in
+            let mine = (managers ?? []).filter {
+                ($0.protocolConfiguration as? NETunnelProviderProtocol)?.providerBundleIdentifier == kTunnelBundleID
+            }
+            guard !mine.isEmpty else {
+                promise.resolve()
+                return
+            }
+            let group = DispatchGroup()
+            for mgr in mine {
+                group.enter()
+                mgr.removeFromPreferences { error in
+                    if let error = error {
+                        print("[HybridNitroXrayCore] removeFromPreferences error: \(error)")
+                    }
+                    group.leave()
+                }
+            }
+            group.notify(queue: .main) { promise.resolve() }
+        }
+        return promise
+    }
+
     // MARK: - requestNotificationPermission
     // iOS does not require notification permission for VPN — returning true immediately.
 
