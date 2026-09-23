@@ -1,3 +1,14 @@
+## [1.6.0](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.5.0...v1.6.0) (2026-09-23)
+
+### ✨ Features
+
+* clearStoredConfig — разоружить виджет при выходе из аккаунта ([cd8ec29](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/cd8ec2916cba1d8653020c414566f52cc232d8b4))
+
+### 🐛 Bug Fixes
+
+* clearStoredConfig по итогам ревью — отказ вместо тихого успеха ([07a1787](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/07a17873ce71f56f6a2a2db6dbc268d212ee8ee7))
+* **ios:** clearStoredConfig ждёт остановки туннеля и сам отдаёт disconnected ([d79831e](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/d79831e8fe3147cb0dd315fa19a484ea093650e4))
+
 ## [1.5.0](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.4.0...v1.5.0) (2026-09-04)
 
 ### ✨ Features
