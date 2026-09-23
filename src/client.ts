@@ -362,11 +362,19 @@ export const XrayClient = {
    * asks for VPN permission again, because the profile is recreated.
    */
   async clearStoredConfig(): Promise<void> {
-    try {
+    // An older native build without the method could not have stored anything.
+    // Real failures (profile not removed, no context) MUST propagate: a caller
+    // told "disarmed" while the profile is still there would sign the user out
+    // with a widget that can still bring the tunnel up.
+    const native = NitroXrayCore as unknown as { clearStoredConfig?: () => Promise<void> }
+    if (typeof native.clearStoredConfig !== 'function') return
+    // Under the same lock as connect()/disconnect(): wiping the config and the
+    // profile under an in-flight startXray would strand it waiting for a
+    // .disconnected that never comes.
+    return withLock(async () => {
+      armedOlcrtc = null
       await NitroXrayCore.clearStoredConfig()
-    } catch {
-      // older native build without the API — nothing it could have stored
-    }
+    })
   },
 
   /**

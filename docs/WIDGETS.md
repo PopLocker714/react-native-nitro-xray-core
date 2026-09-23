@@ -39,14 +39,14 @@ await XrayClient.disconnect()
 await XrayClient.clearStoredConfig()
 ```
 
-`clearStoredConfig()` forgets the persisted config (Keychain access group +
+`clearStoredConfig()` must run after `disconnect()`. It forgets the persisted config (Keychain access group +
 App Group on iOS, `QuickConnectStore` on Android), drops the armed olcrtc
 params and, on iOS, removes the VPN profile. Removing the profile is what
 makes the widget fall into its "open the app" state — there is nothing left to
 toggle. The next `connect()` recreates the profile through
 `requestVpnPermission()`, so iOS asks for VPN permission once more. Sign-out is
-rare; that one prompt is the price of a widget that cannot connect on behalf
-of nobody.
+rare; that one prompt is the price of a widget that cannot connect on
+anyone's behalf.
 
 ### The bypass needs two halves
 
