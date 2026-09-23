@@ -57,8 +57,17 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
      */
     override fun clearStoredConfig(): Promise<Unit> {
         return Promise.async {
-            val context = NitroModules.applicationContext ?: return@async
+            val context = NitroModules.applicationContext
+            if (context == null) {
+                // Тихо выйти нельзя: виджет тогда продолжит поднимать VPN
+                // после выхода из аккаунта, а в логе не останется ни следа.
+                Log.w("NitroXrayCore", "clearStoredConfig: no application context, store NOT cleared")
+                return@async
+            }
+            val before = com.nitroxraycore.QuickConnectStore.isReady(context)
             com.nitroxraycore.QuickConnectStore.clear(context)
+            val after = com.nitroxraycore.QuickConnectStore.isReady(context)
+            Log.i("NitroXrayCore", "clearStoredConfig: quick-connect ready before=$before after=$after")
         }
     }
 
