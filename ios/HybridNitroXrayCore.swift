@@ -48,6 +48,17 @@ enum XraySharedState {
 /// UserDefaults key for the VPN config JSON (legacy App Group fallback)
 private let kConfigKey = "xray_config_json"
 
+/// Диагностика в unified log: `print` в release-сборке никуда не уходит, а
+/// `idevicesyslog` эти строки показывает. Указатель менеджера нужен, чтобы
+/// отличать экземпляры: после удаления профиля старый объект ещё живёт.
+private func nlog(_ message: String) {
+    NSLog("[NitroXray] %@", message)
+}
+private func ptr(_ mgr: NETunnelProviderManager?) -> String {
+    guard let mgr = mgr else { return "nil" }
+    return String(describing: Unmanaged.passUnretained(mgr).toOpaque())
+}
+
 /// Encrypted config storage shared between the app and the Network Extension
 /// via a Keychain access group. Preferred over the App Group plist because
 /// Keychain items are encrypted at rest and device-bound (not backed up / not
@@ -256,6 +267,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         case .disconnected, .invalid: s = "disconnected"
         @unknown default: s = "disconnected"
         }
+        nlog("emitState raw=\(status.rawValue) → \(s) manager=\(ptr(self.manager)) desc=\(self.manager?.localizedDescription ?? "-")")
         if status == .connected { refreshVersion() }
         // NEVPNStatusDidChange can fire repeatedly for the same status — dedupe
         // so subscribers don't get a storm of identical 'connected' events.
@@ -370,26 +382,86 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         pendingOlcrtcConfig = nil
         XrayKeychain.clear()
         UserDefaults(suiteName: kAppGroup)?.removeObject(forKey: kConfigKey)
-        publishSharedState("disconnected")
-        NETunnelProviderManager.loadAllFromPreferences { managers, _ in
-            let mine = (managers ?? []).filter {
-                ($0.protocolConfiguration as? NETunnelProviderProtocol)?.providerBundleIdentifier == kTunnelBundleID
-            }
-            guard !mine.isEmpty else {
-                promise.resolve()
-                return
-            }
-            let group = DispatchGroup()
-            for mgr in mine {
-                group.enter()
-                mgr.removeFromPreferences { error in
-                    if let error = error {
-                        print("[HybridNitroXrayCore] removeFromPreferences error: \(error)")
-                    }
-                    group.leave()
+
+        // Удаление профиля и завершение. Вызывается только когда туннель уже
+        // лежит: удаление конфигурации ПОД останавливающимся туннелем теряет
+        // финальный переход в disconnected — статус приходит через несколько
+        // секунд, когда конфигурации уже нет, и наблюдатель его не отдаёт. JS
+        // тогда навсегда остаётся в «отключении». Проверено на устройстве:
+        // stop в 14:45:54.365, профиль удалён в 14:45:54.484, а расширение
+        // остановилось только в 14:45:59 с reason=10 "Configuration was removed".
+        let removeProfile: () -> Void = { [weak self] in
+            NETunnelProviderManager.loadAllFromPreferences { managers, _ in
+                let mine = (managers ?? []).filter {
+                    ($0.protocolConfiguration as? NETunnelProviderProtocol)?.providerBundleIdentifier == kTunnelBundleID
                 }
+                nlog("clearStoredConfig: profiles to remove: \(mine.count)")
+                let done: () -> Void = {
+                    guard let self = self else {
+                        promise.resolve()
+                        return
+                    }
+                    // Профиля больше нет — терминальное состояние отдаём сами,
+                    // не полагаясь на уведомление от удалённой конфигурации.
+                    self.manager = nil
+                    self.lastEmittedState = "disconnected"
+                    self.publishSharedState("disconnected")
+                    self.stateCallback?("disconnected", "")
+                    nlog("clearStoredConfig: done, emitted disconnected")
+                    promise.resolve()
+                }
+                guard !mine.isEmpty else {
+                    done()
+                    return
+                }
+                let group = DispatchGroup()
+                for mgr in mine {
+                    group.enter()
+                    mgr.removeFromPreferences { error in
+                        if let error = error {
+                            nlog("clearStoredConfig: removeFromPreferences error \(error)")
+                        } else {
+                            nlog("clearStoredConfig: profile removed")
+                        }
+                        group.leave()
+                    }
+                }
+                group.notify(queue: .main) { done() }
             }
-            group.notify(queue: .main) { promise.resolve() }
+        }
+
+        let status = self.manager?.connection.status ?? .invalid
+        guard let mgr = self.manager,
+              status == .connected || status == .connecting || status == .reasserting || status == .disconnecting
+        else {
+            removeProfile()
+            return promise
+        }
+
+        // Туннель ещё жив или останавливается: гасим и ждём disconnected.
+        // Таймаут — страховка от зависшего расширения: профиль всё равно
+        // удалим, а JS всё равно получит терминальное состояние.
+        nlog("clearStoredConfig: tunnel status \(status.rawValue), waiting for it to stop")
+        var finished = false
+        var observer: NSObjectProtocol?
+        let complete: () -> Void = {
+            if finished { return }
+            finished = true
+            if let observer = observer { NotificationCenter.default.removeObserver(observer) }
+            removeProfile()
+        }
+        observer = NotificationCenter.default.addObserver(
+            forName: .NEVPNStatusDidChange, object: mgr.connection, queue: .main
+        ) { _ in
+            let now = mgr.connection.status
+            if now == .disconnected || now == .invalid { complete() }
+        }
+        if status != .disconnecting {
+            mgr.connection.stopVPNTunnel()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            if !finished { nlog("clearStoredConfig: timeout waiting for disconnected") }
+            complete()
         }
         return promise
     }
@@ -436,21 +508,26 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
                 promise.reject(withError: error)
 
             case .success(let mgr):
+                nlog("startXray: manager \(ptr(mgr)) desc=\(mgr.localizedDescription ?? "-") status=\(mgr.connection.status.rawValue) (was \(ptr(self.manager)))")
                 self.manager = mgr
 
                 // 3. Save profile (needed on first run; no-op on subsequent calls)
                 mgr.saveToPreferences { saveError in
                     if let saveError = saveError {
+                        nlog("startXray: saveToPreferences error \(saveError)")
                         promise.reject(withError: saveError)
                         return
                     }
+                    nlog("startXray: saved")
 
                     // 4. Reload from preferences (required by Apple after save)
                     mgr.loadFromPreferences { loadError in
                         if let loadError = loadError {
+                            nlog("startXray: loadFromPreferences error \(loadError)")
                             promise.reject(withError: loadError)
                             return
                         }
+                        nlog("startXray: loaded, status=\(mgr.connection.status.rawValue)")
 
                         // Actually launch the tunnel with the new config.
                         let launch: () -> Void = {
@@ -459,6 +536,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
                                     "config": configJson as NSObject
                                 ])
                                 print("[HybridNitroXrayCore] startVPNTunnel called successfully.")
+                                nlog("startXray: startVPNTunnel called")
                                 // If this connect chains through olcrtc, watch its
                                 // readiness and emit proxy-connecting/ready/failed —
                                 // 'connected' fires before olcrtc can carry traffic.
@@ -468,6 +546,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
                                 promise.resolve()
                             } catch {
                                 print("[HybridNitroXrayCore] startVPNTunnel ERROR: \(error)")
+                                nlog("startXray: startVPNTunnel error \(error)")
                                 promise.reject(withError: error)
                             }
                         }
@@ -481,6 +560,7 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
                         if status == .connected || status == .connecting
                             || status == .reasserting || status == .disconnecting {
                             print("[HybridNitroXrayCore] switching config — stopping current tunnel first")
+                            nlog("startXray: status \(status.rawValue) busy → stop first, waiting for disconnected")
                             var obs: NSObjectProtocol?
                             obs = NotificationCenter.default.addObserver(
                                 forName: .NEVPNStatusDidChange,
