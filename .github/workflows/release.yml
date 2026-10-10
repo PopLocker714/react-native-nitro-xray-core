@@ -30,7 +30,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           # 22.14.0 это пол npm для trusted publishing, не опускать
           node-version: 22.14.0
