@@ -52,6 +52,7 @@
     "nitrogen",
     "cpp",
     "nitro.json",
+    "docs",
     "android/build.gradle",
     "android/fix-prefab.gradle",
     "android/gradle.properties",

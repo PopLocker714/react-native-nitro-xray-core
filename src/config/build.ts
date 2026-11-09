@@ -25,6 +25,8 @@ export interface BuildConfigOptions {
   proxyTag?: string
   /** Xray DNS servers. Default ['1.1.1.1', 'localhost']. */
   dns?: string[]
+  /** Domain suffixes to connect to directly. Empty by default; no implicit geo rules. */
+  directDomains?: readonly string[]
   /** TUN interface name. Default 'tun0'. */
   tunName?: string
   /** MTU for the TUN inbound. Default 1500. */
@@ -91,6 +93,7 @@ export function buildXrayConfig(
       rules: [
         { type: 'field', port: 53, outboundTag: 'dns-out' },
         { type: 'field', ip: PRIVATE_RANGES, outboundTag: 'direct' },
+        ...directDomainRules(options.directDomains),
         { type: 'field', inboundTag: ['tun-in'], outboundTag: proxyTag },
       ],
     },
@@ -114,6 +117,8 @@ export function buildXrayConfig(
 
 /** Options for {@link buildOlcrtcTunnelConfig}. */
 export interface OlcrtcTunnelOptions {
+  /** Optional direct domain suffixes; opt in explicitly for whitelist tunnels. */
+  directDomains?: readonly string[]
   /** Local SOCKS5 port olcrtc listens on (from `getOlcrtcSocksPort()`). */
   socksPort: number
   /** Host olcrtc's SOCKS5 binds to. Default '127.0.0.1'. */
@@ -166,7 +171,9 @@ export function buildOlcrtcTunnelConfig(
       {
         tag: proxyTag,
         protocol: 'socks',
-        settings: { servers: [{ address: socksHost, port: options.socksPort }] },
+        settings: {
+          servers: [{ address: socksHost, port: options.socksPort }],
+        },
       },
       { protocol: 'freedom', tag: 'direct' },
       { protocol: 'blackhole', tag: 'block' },
@@ -178,6 +185,7 @@ export function buildOlcrtcTunnelConfig(
       rules: [
         { type: 'field', port: 53, outboundTag: 'dns-out' },
         { type: 'field', ip: PRIVATE_RANGES, outboundTag: 'direct' },
+        ...directDomainRules(options.directDomains),
         { type: 'field', inboundTag: ['tun-in'], outboundTag: proxyTag },
       ],
     },
@@ -197,6 +205,18 @@ export function buildOlcrtcTunnelConfig(
   }
 
   return config
+}
+
+function directDomainRules(domains: readonly string[] = []) {
+  const suffixes = [...new Set(domains.map((domain) => domain.toLowerCase()))]
+  for (const domain of suffixes) {
+    if (domain.length > 253 || !/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(domain) || domain.split('.').some((label) => label.length > 63)) {
+      throw new Error('Invalid direct domain suffix')
+    }
+  }
+  return suffixes.length
+    ? [{ type: 'field', domain: suffixes.map((domain) => `domain:${domain}`), outboundTag: 'direct' }]
+    : []
 }
 
 function buildOutbound(
@@ -225,17 +245,21 @@ function buildOlcrtcOutbound(
     tag,
     protocol: 'socks',
     settings: {
-      servers: [{ address: olcrtc.socksHost ?? '127.0.0.1', port: olcrtc.socksPort }],
+      servers: [
+        { address: olcrtc.socksHost ?? '127.0.0.1', port: olcrtc.socksPort },
+      ],
     },
   }
 }
 
 function xrayProtocol(protocol: ParsedServer['protocol']): string {
-  return protocol === 'shadowsocks' ? 'shadowsocks' : protocol
+  return protocol === 'hysteria2' ? 'hysteria' : protocol
 }
 
 function buildSettings(server: ParsedServer): Record<string, unknown> {
   switch (server.protocol) {
+    case 'hysteria2':
+      return { address: server.address, port: server.port, version: 2 }
     case 'vless':
       return {
         vnext: [
@@ -324,6 +348,14 @@ function buildStreamSettings(
     })
   }
 
+  if (server.protocol === 'hysteria2' && server.obfsPassword) {
+    stream.finalmask = {
+      udp: [
+        { type: 'salamander', settings: { password: server.obfsPassword } },
+      ],
+    }
+  }
+
   const transport = buildTransportSettings(server)
   if (transport) {
     stream[transport.key] = transport.value
@@ -336,6 +368,11 @@ function buildTransportSettings(
   server: ParsedServer
 ): { key: string; value: Record<string, unknown> } | null {
   switch (server.network) {
+    case 'hysteria':
+      return {
+        key: 'hysteriaSettings',
+        value: { version: 2, auth: server.password },
+      }
     case 'ws':
       return {
         key: 'wsSettings',

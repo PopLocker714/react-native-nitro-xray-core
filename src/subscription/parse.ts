@@ -3,7 +3,7 @@ import type { Network, ParsedServer, Security, SubscriptionInfo } from './types'
 
 /**
  * Parse a single share link into a {@link ParsedServer}.
- * Supports: vless://, vmess://, trojan://, ss:// (SIP002 + legacy base64).
+ * Supports vless, vmess, trojan, ss (SIP002/legacy), hysteria2 and hy2.
  * Returns null for unknown schemes or malformed links.
  */
 export function parseShareLink(uri: string): ParsedServer | null {
@@ -23,6 +23,9 @@ export function parseShareLink(uri: string): ParsedServer | null {
         return parseVmess(afterScheme, trimmed)
       case 'ss':
         return parseShadowsocks(afterScheme, trimmed)
+      case 'hysteria2':
+      case 'hy2':
+        return parseHysteria2(afterScheme, trimmed)
       default:
         return null
     }
@@ -80,6 +83,43 @@ export function parseSubscriptionUserInfo(
 }
 
 // --- Protocol parsers ---------------------------------------------------------
+
+function parseHysteria2(afterScheme: string, raw: string): ParsedServer | null {
+  const parts = splitAuthorityLink(afterScheme)
+  if (!parts || !parts.userinfo) return null
+  // Hysteria2 defaults to 443, but malformed ports must not become that default.
+  // Port hopping is deliberately unsupported by this normalized fixed-port API.
+  const authority = parts.authority.startsWith('[')
+    ? /^\[[^\]]+\](?::([0-9]+))?$/.exec(parts.authority)
+    : /^[^:\s]+(?::([0-9]+))?$/.exec(parts.authority)
+  if (!authority) return null
+  const port = authority[1] === undefined ? 443 : Number(authority[1])
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return null
+  const query = parts.query
+  if (query.obfs && query.obfs !== 'salamander') return null
+  if (query.obfs === 'salamander' && !query['obfs-password']) return null
+  // Do not silently discard a requested certificate pin or port-hopping policy.
+  if ('pinSHA256' in query || 'mport' in query) return null
+  // The shipped core rejects allowInsecure=true; preserve verification instead
+  // of importing a link that would only fail when the tunnel is started.
+  if (query.insecure && !['0', 'false'].includes(query.insecure)) {
+    return null
+  }
+  return {
+    protocol: 'hysteria2',
+    tag: parts.fragment || fallbackTag('hysteria2', parts.host, port),
+    address: parts.host,
+    port,
+    password: decodeComponentSafe(parts.userinfo),
+    network: 'hysteria',
+    security: 'tls',
+    sni: query.sni || undefined,
+    alpn: splitCsv(query.alpn) ?? ['h3'],
+    obfsPassword:
+      query.obfs === 'salamander' ? query['obfs-password'] : undefined,
+    raw,
+  }
+}
 
 function parseVless(afterScheme: string, raw: string): ParsedServer | null {
   const parts = splitAuthorityLink(afterScheme)
@@ -166,10 +206,14 @@ function parseVmess(afterScheme: string, raw: string): ParsedServer | null {
   }
 }
 
-function parseShadowsocks(afterScheme: string, raw: string): ParsedServer | null {
+function parseShadowsocks(
+  afterScheme: string,
+  raw: string
+): ParsedServer | null {
   // Split off #fragment (name).
   const hashIdx = afterScheme.indexOf('#')
-  const fragment = hashIdx === -1 ? '' : decodeComponentSafe(afterScheme.slice(hashIdx + 1))
+  const fragment =
+    hashIdx === -1 ? '' : decodeComponentSafe(afterScheme.slice(hashIdx + 1))
   let body = hashIdx === -1 ? afterScheme : afterScheme.slice(0, hashIdx)
 
   // Strip ?plugin=... (unused for now) before decoding.
@@ -225,6 +269,7 @@ function parseShadowsocks(afterScheme: string, raw: string): ParsedServer | null
 // --- Shared helpers -----------------------------------------------------------
 
 interface AuthorityParts {
+  authority: string
   userinfo: string
   host: string
   port: number
@@ -263,7 +308,7 @@ function splitAuthorityLink(afterScheme: string): AuthorityParts | null {
 
   const { host, port } = splitHostPort(rest)
   if (!host) return null
-  return { userinfo, host, port, query, fragment }
+  return { authority: rest, userinfo, host, port, query, fragment }
 }
 
 function streamFromQuery(
@@ -377,8 +422,12 @@ function toPort(value: string | number | undefined): number {
   return toNumber(value, 0)
 }
 
-function toNumber(value: string | number | undefined, fallback: number): number {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback
+function toNumber(
+  value: string | number | undefined,
+  fallback: number
+): number {
+  if (typeof value === 'number')
+    return Number.isFinite(value) ? value : fallback
   if (typeof value === 'string') {
     const parsed = parseInt(value, 10)
     return Number.isFinite(parsed) ? parsed : fallback

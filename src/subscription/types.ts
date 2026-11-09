@@ -6,7 +6,12 @@
  * consumes it. It intentionally mirrors the union of fields the supported
  * protocols/transports need, rather than any single Xray schema shape.
  */
-export type ProxyProtocol = 'vless' | 'vmess' | 'trojan' | 'shadowsocks'
+export type ProxyProtocol =
+  | 'vless'
+  | 'vmess'
+  | 'trojan'
+  | 'shadowsocks'
+  | 'hysteria2'
 
 export type Network =
   | 'tcp'
@@ -16,6 +21,7 @@ export type Network =
   | 'xhttp'
   | 'kcp'
   | 'h2'
+  | 'hysteria'
 
 export type Security = 'none' | 'tls' | 'reality'
 
@@ -52,7 +58,7 @@ export interface ParsedServer {
   // Auth
   /** UUID for vless/vmess. */
   id?: string
-  /** Password for trojan / shadowsocks. */
+  /** Password for trojan / shadowsocks, or Hysteria2 auth string. */
   password?: string
   /** Cipher method for shadowsocks. */
   method?: string
@@ -69,6 +75,8 @@ export interface ParsedServer {
   sni?: string
   fingerprint?: string
   alpn?: string[]
+  /** Hysteria2 Salamander password; absent means no packet obfuscation. */
+  obfsPassword?: string
 
   // Reality
   publicKey?: string

@@ -53,6 +53,9 @@ jobs:
       - name: Build lib
         run: bun run build
 
+      - name: Test lib
+        run: bun test
+
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

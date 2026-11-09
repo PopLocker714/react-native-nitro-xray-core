@@ -34,10 +34,15 @@ Device-verified on **Android** and **iOS** (Network Extension).
 
 - **Full Xray-core transports** — VLESS / VMess / Trojan / Shadowsocks over
   TCP / WS / gRPC / HTTPUpgrade / XHTTP / mKCP / h2, with TLS / Reality / XTLS-Vision.
-- **Subscription parsing (pure TS)** — `vless://` / `vmess://` / `ss://` / `trojan://`
+- **Hysteria2** — authenticated QUIC/UDP with TLS and optional Salamander
+  obfuscation. See [usage](docs/hysteria2.md) / [на русском](docs/hysteria2.ru.md).
+- **Subscription parsing (pure TS)** — `vless://` / `vmess://` / `ss://` / `trojan://` / `hysteria2://` / `hy2://`
   links, base64 subscriptions, and the `subscription-userinfo` quota/expiry header.
 - **Typed config builder** — a parsed server → a full Xray JSON config. Raw JSON
   stays available as an escape hatch.
+- **Optional direct routing** — `directDomains` accepts explicit domain suffixes
+  for both regular and olcrtc tunnel configs. No country-wide bypass is enabled
+  by default; the caller owns its routing policy.
 - **State + traffic stats** — `connecting/connected/reconnecting/error/blocked`
   events and session-continuous up/down counters that survive server switches.
 - **Tunnel-continuous server switching (Android)** — switching servers reuses the
