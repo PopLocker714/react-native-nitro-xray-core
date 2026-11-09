@@ -32,6 +32,10 @@ import (
 	_ "github.com/xtls/xray-core/main/distro/all"
 )
 
+const diagnosticProducer = "android_service"
+
+var runningAttempt uint64
+
 var runningServer *core.Instance
 
 func logInfo(msg string) {
@@ -48,8 +52,9 @@ func logError(msg string) {
 
 //export StartXray
 func StartXray(configStr *C.char, tunFd C.int) C.int {
+	attemptID := diagnosticCurrentAttempt()
 	if runningServer != nil {
-		logError("Xray: Server is already running")
+		diagnosticRecordAttempt("xray", "go", "already_running", attemptID)
 		return -1
 	}
 
@@ -65,41 +70,44 @@ func StartXray(configStr *C.char, tunFd C.int) C.int {
 
 	configObj, err := core.LoadConfig("json", bytes.NewReader([]byte(goConfig)))
 	if err != nil {
-		logError(fmt.Sprintf("Xray: Failed to parse config: %v", err))
+		diagnosticRecordAttempt("xray", "go", "parse_failed", attemptID)
 		return -2
 	}
 
+	configureDiagnosticLogger(configObj)
 	server, err := core.New(configObj)
 	if err != nil {
-		logError(fmt.Sprintf("Xray: Failed to init server: %v", err))
+		diagnosticRecordAttempt("xray", "go", "init_failed", attemptID)
 		return -3
 	}
 
 	if err := server.Start(); err != nil {
-		logError(fmt.Sprintf("Xray: Failed to start server: %v", err))
+		diagnosticRecordAttempt("xray", "go", "start_failed", attemptID)
 		return -4
 	}
 
 	runningServer = server
+	runningAttempt = attemptID
 
 	// Initial GC
 	runtime.GC()
 	debug.FreeOSMemory()
 
-	logInfo("Xray: Server started successfully")
+	diagnosticRecordAttempt("xray", "go", "engine_started", attemptID)
 	return 0
 }
 
 //export StopXray
 func StopXray() C.int {
+	attemptID := runningAttempt
 	if runningServer != nil {
 		err := runningServer.Close()
 		runningServer = nil
 		if err != nil {
-			logError(fmt.Sprintf("Xray: Failed to stop server: %v", err))
+			diagnosticRecordAttempt("xray", "go", "stop_failed", attemptID)
 			return -1
 		}
-		logInfo("Xray: Server stopped")
+		diagnosticRecordAttempt("xray", "go", "stopped", attemptID)
 	}
 	return 0
 }

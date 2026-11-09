@@ -30,6 +30,15 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec() {
         private const val STOP_TIMEOUT_MS = 7_000L
     }
 
+    override fun getDiagnosticSnapshot(after: Double): Promise<String> = Promise.async {
+        try { XrayEngine.diagnosticSnapshot(after.coerceAtLeast(0.0).toLong()) }
+        catch (_: UnsatisfiedLinkError) { "{\"available\":false}" }
+    }
+    override fun clearDiagnostics(): Promise<Unit> = Promise.async {
+        try { XrayEngine.clearDiagnostics() } catch (_: UnsatisfiedLinkError) { }
+    }
+    override fun getSystemVpnStatus(): String = XrayVpnService.systemVpnStatus()
+
     override fun isVpnConnected(): Boolean {
         return com.nitroxraycore.XrayVpnService.isRunning
     }

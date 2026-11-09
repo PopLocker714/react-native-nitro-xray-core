@@ -1,4 +1,5 @@
 #include <jni.h>
+#include <dlfcn.h>
 #include <fbjni/fbjni.h>
 #include "NitroXrayCoreOnLoad.hpp"
 #include <string>
@@ -85,4 +86,29 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {
   return facebook::jni::initialize(vm, []() {
     margelo::nitro::nitroxraycore::registerAllNatives();
   });
+}
+// Optional symbols keep the adapter honest with pre-diagnostics Go artifacts.
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_nitroxraycore_XrayEngine_diagnosticSnapshot(JNIEnv* env, jobject, jlong after) {
+    auto snapshot = reinterpret_cast<char*(*)(unsigned long long)>(dlsym(RTLD_DEFAULT, "GetDiagnosticSnapshot"));
+    if (!snapshot) return env->NewStringUTF("{\"available\":false}");
+    char* json = snapshot(static_cast<unsigned long long>(after));
+    auto result = env->NewStringUTF(json ? json : "{\"available\":false}");
+    if (json) FreeString(json);
+    return result;
+}
+extern "C" JNIEXPORT void JNICALL
+Java_com_nitroxraycore_XrayEngine_clearDiagnostics(JNIEnv*, jobject) {
+    auto fn = reinterpret_cast<void(*)()>(dlsym(RTLD_DEFAULT, "ClearDiagnostics"));
+    if (fn) fn();
+}
+extern "C" JNIEXPORT void JNICALL
+Java_com_nitroxraycore_XrayEngine_nativeBeginDiagnosticAttempt(JNIEnv*, jobject) {
+    auto fn = reinterpret_cast<void(*)()>(dlsym(RTLD_DEFAULT, "BeginDiagnosticAttempt"));
+    if (fn) fn();
+}
+extern "C" JNIEXPORT void JNICALL
+Java_com_nitroxraycore_XrayEngine_nativeRecordDiagnosticCode(JNIEnv*, jobject, jint code) {
+    auto fn = reinterpret_cast<void(*)(int)>(dlsym(RTLD_DEFAULT, "RecordDiagnosticCode"));
+    if (fn) fn(code);
 }

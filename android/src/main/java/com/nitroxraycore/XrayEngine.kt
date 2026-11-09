@@ -34,6 +34,13 @@ import kotlin.concurrent.withLock
  * free, otherwise returning the last observed value.
  */
 object XrayEngine {
+    external fun diagnosticSnapshot(after: Long): String
+    external fun clearDiagnostics()
+    fun beginDiagnosticAttempt() { try { nativeBeginDiagnosticAttempt() } catch (_: UnsatisfiedLinkError) { } }
+    private external fun nativeBeginDiagnosticAttempt()
+    fun recordDiagnosticCode(code: Int) { try { nativeRecordDiagnosticCode(code) } catch (_: UnsatisfiedLinkError) { } }
+    private external fun nativeRecordDiagnosticCode(code: Int)
+
     private val TAG = "XrayEngine"
 
     /** A previous call never returned; the engine needs a fresh process. */

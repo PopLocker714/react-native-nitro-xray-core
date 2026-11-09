@@ -124,7 +124,16 @@ object QuickConnectStore {
     /** Whether a one-tap reconnect is possible right now. */
     fun isReady(context: Context): Boolean = config(context) != null
 
+    /** Manual stop survives process death, but a new explicit start rearms replay. */
+    fun suppressSystemReplay(context: Context, suppressed: Boolean) {
+        check(prefs(context).edit().putBoolean("system_replay_suppressed", suppressed).commit())
+    }
+
+    fun canSystemReplay(context: Context): Boolean =
+        !prefs(context).getBoolean("system_replay_suppressed", false) && isReady(context)
+
     fun clear(context: Context) {
-        prefs(context).edit().remove(KEY_CONFIG).remove(KEY_DNS).remove(KEY_OLCRTC).remove(KEY_CONN_INFO).apply()
+        suppressSystemReplay(context, true)
+        prefs(context).edit().remove(KEY_CONFIG).remove(KEY_DNS).remove(KEY_OLCRTC).remove(KEY_CONN_INFO).commit()
     }
 }

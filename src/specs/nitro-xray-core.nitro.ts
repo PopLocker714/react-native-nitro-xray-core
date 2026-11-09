@@ -58,6 +58,10 @@ export interface NotificationConfig {
 }
 
 export interface NitroXrayCore extends HybridObject<{ ios: 'swift', android: 'kotlin' }> {
+  /** Bounded JSON wire DTO; use validated public wrapper. New native ABI required. */
+  getDiagnosticSnapshot(after: number): Promise<string>
+  clearDiagnostics(): Promise<void>
+  getSystemVpnStatus(): string
   hasVpnPermission(): Promise<boolean>
   requestVpnPermission(): Promise<void>
   requestNotificationPermission(): Promise<boolean>

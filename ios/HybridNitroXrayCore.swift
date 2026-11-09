@@ -192,6 +192,46 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
         }
     }
 
+    // A missing/old extension or a timeout is a capability failure, never a VPN failure.
+    func getDiagnosticSnapshot(after: Double) throws -> Promise<String> {
+        return diagnosticMessage(command: "diagnostics", after: after)
+    }
+    func clearDiagnostics() throws -> Promise<Void> {
+        let result = Promise<Void>()
+        diagnosticMessage(command: "clearDiagnostics", after: 0).then { response in
+            if response == "{\"available\":true}" { result.resolve(withResult: ()) }
+            else { result.reject(withError: NSError(domain: "XrayCore", code: -21,
+                userInfo: [NSLocalizedDescriptionKey: "DIAGNOSTICS_UNAVAILABLE"])) }
+        }.catch { error in result.reject(withError: error) }
+        return result
+    }
+    func getSystemVpnStatus() throws -> String { return "{\"supported\":false,\"alwaysOn\":null,\"lockdown\":null}" }
+    private func diagnosticMessage(command: String, after: Double) -> Promise<String> {
+        let promise = Promise<String>()
+        let gate = NSLock()
+        var completed = false
+        let finish: (String) -> Void = { value in
+            gate.lock(); defer { gate.unlock() }
+            guard !completed else { return }; completed = true
+            promise.resolve(withResult: value)
+        }
+        guard after.isFinite, after >= 0, after <= 9007199254740991,
+              let session = manager?.connection as? NETunnelProviderSession,
+              session.status == .connected,
+              let data = try? JSONSerialization.data(withJSONObject: ["cmd":command, "after":after])
+        else { finish("{\"available\":false}"); return promise }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 2) { finish("{\"available\":false}") }
+        do {
+            try session.sendProviderMessage(data) { response in
+                guard let response = response, response.count <= 32768,
+                      let value = String(data: response, encoding: .utf8)
+                else { finish("{\"available\":false}"); return }
+                finish(value)
+            }
+        } catch { finish("{\"available\":false}") }
+        return promise
+    }
+
     // MARK: - getStats
     // The engine runs in the NE process, so query it over the provider message
     // channel: the app sends {"cmd":"stats","tag":...}; the extension replies

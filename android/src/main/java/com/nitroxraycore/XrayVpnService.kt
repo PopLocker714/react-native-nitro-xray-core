@@ -73,6 +73,18 @@ class XrayVpnService : VpnService() {
         java.util.Collections.synchronizedList(mutableListOf<ParcelFileDescriptor>())
 
     companion object {
+        @Volatile private var currentService: XrayVpnService? = null
+        fun systemVpnStatus(): String {
+            val service = currentService
+            val known = android.os.Build.VERSION.SDK_INT >= 29 && service != null
+            val obj = org.json.JSONObject()
+            obj.put("supported", android.os.Build.VERSION.SDK_INT >= 24)
+            obj.put("alwaysOn", if (known) service!!.isAlwaysOn else org.json.JSONObject.NULL)
+            obj.put("lockdown", if (known) service!!.isLockdownEnabled else org.json.JSONObject.NULL)
+            obj.put("settingsAction", "android.settings.VPN_SETTINGS")
+            return obj.toString()
+        }
+
         const val ACTION_START = "ACTION_START"
         const val ACTION_STOP = "ACTION_STOP"
 
@@ -144,23 +156,33 @@ class XrayVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // START_STICKY restart after process death: no intent, no config, and
-        // the system already tore our TUN down with the process. Nothing to
-        // resume — exit quietly instead of emitting a spurious error.
-        if (intent == null) {
-            Log.i(TAG, "Restarted with null intent (sticky) — nothing to resume")
+        // Only an explicit system Always-on request may replay without JS.
+        // Ordinary sticky restarts and app killSwitch never imply user consent.
+        val systemRequest = SystemReplayPolicy.isSystemRequest(intent?.action, intent == null)
+        // API 24–28 have no public status query. Only the explicit system action
+        // is accepted there; ambiguous null restarts fail closed.
+        val systemReplayAllowed = SystemReplayPolicy.allows(intent?.action, intent == null,
+            android.os.Build.VERSION.SDK_INT,
+            android.os.Build.VERSION.SDK_INT >= 29 && isAlwaysOn,
+            QuickConnectStore.canSystemReplay(this))
+        if (systemRequest && !systemReplayAllowed) {
+            XrayEngine.recordDiagnosticCode(if (QuickConnectStore.isReady(this)) 3 else 2)
+            XrayStateBus.emit("error", "SYSTEM_REPLAY_UNAVAILABLE")
             stopSelf(startId)
             return START_NOT_STICKY
         }
+        currentService = this
 
         // Шина должна уметь рассылать состояние наружу: подписчик в JS один и
         // при закрытом приложении не существует, а виджету надо обновляться.
         XrayStateBus.attachContext(this)
 
-        val action = intent.action ?: ACTION_START
+        val action = if (systemRequest) ACTION_START_LAST else intent?.action ?: ACTION_START
         Log.d(TAG, "onStartCommand action=$action startId=$startId")
 
         if (action == ACTION_STOP) {
+            QuickConnectStore.suppressSystemReplay(this, true)
+            XrayEngine.recordDiagnosticCode(0)
             Log.i(TAG, "Received STOP action")
             val mySeq = ++commandSeq
             // Captured on the main thread, before the worker queues: identifies
@@ -197,11 +219,12 @@ class XrayVpnService : VpnService() {
         val fromStore = action == ACTION_START_LAST
         val configJson =
             if (fromStore) QuickConnectStore.config(this)
-            else intent.getStringExtra("CONFIG_JSON")
+            else intent?.getStringExtra("CONFIG_JSON")
         if (configJson == null) {
             val reason =
                 if (fromStore) "No stored connection to resume — open the app and connect once"
                 else "No config JSON provided"
+            XrayEngine.recordDiagnosticCode(2)
             Log.e(TAG, reason)
             XrayStateBus.emit("error", reason)
             XrayStateBus.resolveStart(XrayStateBus.currentStartToken(), false, reason)
@@ -215,12 +238,13 @@ class XrayVpnService : VpnService() {
         // Xray config's dns/routing rules.
         val dnsServers =
             if (fromStore) QuickConnectStore.dnsServers(this).ifEmpty { DEFAULT_DNS_SERVERS }
-            else intent.getStringExtra("DNS_SERVERS")
+            else intent?.getStringExtra("DNS_SERVERS")
                 ?.split(",")
                 ?.map { it.trim() }
                 ?.filter { it.isNotEmpty() }
                 ?: DEFAULT_DNS_SERVERS
 
+        if (!systemRequest) QuickConnectStore.suppressSystemReplay(this, false)
         startForegroundService()
         XrayStateBus.emit("connecting")
 
@@ -235,6 +259,7 @@ class XrayVpnService : VpnService() {
                     XrayStateBus.resolveStart(startToken, false, "Superseded by a newer start/stop")
                     return@synchronized
                 }
+                XrayEngine.beginDiagnosticAttempt()
                 runStart(configJson, dnsServers, mySeq, startToken, startId, fromStore)
             }
         }.start()
@@ -709,6 +734,7 @@ class XrayVpnService : VpnService() {
     }
 
     override fun onDestroy() {
+        if (currentService === this) currentService = null
         super.onDestroy()
         // Runs on the MAIN thread, so nothing blocking may happen here. The
         // descriptor cannot be closed before the engine stops (see dropTunnel),

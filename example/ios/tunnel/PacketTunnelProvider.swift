@@ -14,6 +14,7 @@
 //  3. Make sure the tunnel target has the App Group entitlement matching kAppGroup.
 //
 
+import Darwin
 import NetworkExtension
 import os.log
 
@@ -49,7 +50,57 @@ private enum XrayKeychain {
 // MARK: - Logger
 private let logger = Logger(subsystem: "com.xraycore.example.tunnel", category: "PacketTunnel")
 
+
+// Optional Go symbols: old artifacts report unavailable instead of crashing.
+private enum TunnelDiagnostics {
+    private static let checkpointLock = NSLock()
+    private static let handle = UnsafeMutableRawPointer(bitPattern: -2) // RTLD_DEFAULT
+    static func begin() {
+        guard let symbol = dlsym(handle, "BeginDiagnosticAttempt") else { return }
+        unsafeBitCast(symbol, to: (@convention(c) () -> Void).self)()
+    }
+    static func snapshot(after: UInt64 = 0) -> Data? {
+        guard let symbol = dlsym(handle, "GetDiagnosticSnapshot") else { return nil }
+        let call = unsafeBitCast(symbol, to: (@convention(c) (UInt64) -> UnsafeMutablePointer<CChar>?).self)
+        guard let pointer = call(after) else { return nil }
+        defer { FreeString(pointer) }
+        let length = strnlen(pointer, 32769)
+        guard length <= 32768 else { return nil }
+        return Data(bytes: pointer, count: length)
+    }
+    static func clear(group: String) -> Bool {
+        checkpointLock.lock(); defer { checkpointLock.unlock() }
+        if let directory = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group) {
+            try? FileManager.default.removeItem(at: directory.appendingPathComponent("native-diagnostics.json"))
+        }
+        guard let symbol = dlsym(handle, "ClearDiagnostics") else { return false }
+        unsafeBitCast(symbol, to: (@convention(c) () -> Void).self)()
+        return true
+    }
+    static func checkpoint(group: String) {
+        checkpointLock.lock(); defer { checkpointLock.unlock() }
+        // Source is ONLY the allowlisted Go DTO. No stderr, config or error strings.
+        guard let symbol = dlsym(handle, "GetDiagnosticCheckpoint") else { return }
+        let call = unsafeBitCast(symbol, to: (@convention(c) () -> UnsafeMutablePointer<CChar>?).self)
+        guard let pointer = call() else { return }
+        defer { FreeString(pointer) }
+        let length = strnlen(pointer, 32769)
+        guard length <= 32768 else { return }
+        let data = Data(bytes: pointer, count: length)
+        guard
+              let directory = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)
+        else { return }
+        var url = directory.appendingPathComponent("native-diagnostics.json")
+        do {
+            try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            var values = URLResourceValues(); values.isExcludedFromBackup = true
+            try url.setResourceValues(values)
+        } catch { /* Optional checkpoint; live IPC remains authoritative. */ }
+    }
+}
+
 class PacketTunnelProvider: NEPacketTunnelProvider {
+    private var appGroupID = kAppGroup
 
     // olcrtc readiness for this session, queried by the app over
     // sendProviderMessage (App Group UserDefaults doesn't propagate NE→app
@@ -68,12 +119,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     override func startTunnel(options: [String: NSObject]?,
                               completionHandler: @escaping (Error?) -> Void) {
         logger.info("startTunnel called")
+        TunnelDiagnostics.begin()
 
         // The app passes the shared App Group + Keychain group via
         // providerConfiguration, so nothing here hardcodes an app identifier.
         let providerConf = (self.protocolConfiguration as? NETunnelProviderProtocol)?.providerConfiguration
         let keychainGroup = (providerConf?["keychainGroup"] as? String) ?? ""
         let appGroup = (providerConf?["appGroup"] as? String) ?? kAppGroup
+        appGroupID = appGroup
 
         // Config source priority: startVPNTunnel options (in-memory, most
         // direct) → encrypted Keychain (on-demand cold start) → App Group
@@ -180,6 +233,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 StartXray(UnsafeMutablePointer(mutating: ptr), Int32(tunFd))
             }
 
+            TunnelDiagnostics.checkpoint(group: self.appGroupID)
             if result != 0 {
                 let err = NSError(domain: "XrayTunnel", code: Int(result),
                                   userInfo: [NSLocalizedDescriptionKey: "StartXray returned error code \(result)"])
@@ -213,6 +267,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         olcrtcStatus = ""
         StopOlcrtc()
         let result = StopXray()
+        TunnelDiagnostics.checkpoint(group: self.appGroupID)
         if result != 0 {
             logger.error("StopXray returned error code \(result)")
         }
@@ -224,6 +279,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
     override func handleAppMessage(_ messageData: Data,
                                    completionHandler: ((Data?) -> Void)?) {
+        guard messageData.count <= 256 else { completionHandler?(nil); return }
         guard
             let obj = try? JSONSerialization.jsonObject(with: messageData) as? [String: Any],
             let cmd = obj["cmd"] as? String
@@ -233,6 +289,17 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
 
         switch cmd {
+        case "diagnostics":
+            let cursor = obj["after"] as? NSNumber
+            let after = cursor?.doubleValue ?? 0
+            guard after.isFinite, after >= 0, after <= 9007199254740991,
+                  after.rounded(.down) == after else { completionHandler?(nil); return }
+            let data = TunnelDiagnostics.snapshot(after: UInt64(after))
+            TunnelDiagnostics.checkpoint(group: self.appGroupID)
+            completionHandler?(data ?? Data("{\"available\":false}".utf8))
+        case "clearDiagnostics":
+            let available = TunnelDiagnostics.clear(group: self.appGroupID)
+            completionHandler?(Data((available ? "{\"available\":true}" : "{\"available\":false}").utf8))
         case "stats":
             // {"cmd":"stats","tag":"proxy"} -> {"uplink":N,"downlink":N}
             let tag = (obj["tag"] as? String) ?? "proxy"

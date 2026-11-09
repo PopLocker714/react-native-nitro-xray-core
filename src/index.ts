@@ -50,3 +50,6 @@ export type {
   XrayState,
   NotificationConfig,
 } from './specs/nitro-xray-core.nitro'
+
+export { getDiagnosticSnapshot, clearDiagnostics, getSystemVpnStatus } from './diagnostics'
+export type { DiagnosticSnapshot, DiagnosticEvent, SystemVpnStatus } from './diagnostics'

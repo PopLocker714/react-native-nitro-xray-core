@@ -58,9 +58,10 @@ var iosOlcrtcSocksPort int
 //
 //export StartOlcrtc
 func StartOlcrtc(configStr *C.char) C.int {
+	attemptID := diagnosticCurrentAttempt()
 	var cfg iosOlcrtcConfig
 	if err := json.Unmarshal([]byte(C.GoString(configStr)), &cfg); err != nil {
-		logError(fmt.Sprintf("olcrtc: parse config: %v", err))
+		diagnosticRecordAttempt("olcrtc", "go", "parse_failed", attemptID)
 		return -1
 	}
 	if cfg.SocksPort <= 0 {
@@ -73,6 +74,7 @@ func StartOlcrtc(configStr *C.char) C.int {
 	if mobile.IsRunning() {
 		mobile.Stop()
 	}
+	mobile.SetLogWriter(olcrtcLogWriter{})
 	mobile.SetDebug(cfg.Debug)
 	mobile.SetProviders()
 	if cfg.SocksHost != "" {
@@ -104,17 +106,18 @@ func StartOlcrtc(configStr *C.char) C.int {
 				cfg.SocksPort, cfg.SocksUser, cfg.SocksPass)
 		}
 		if err != nil {
-			logError(fmt.Sprintf("olcrtc: start (attempt %d/%d): %v", attempt, retries, err))
+			diagnosticRecordAttempt("olcrtc", "go", "proxy_retry_failed", attemptID)
 			rc = -2
 			continue
 		}
 		if err := mobile.WaitReady(cfg.ReadyTimeoutMs); err != nil {
-			logError(fmt.Sprintf("olcrtc: not ready (attempt %d/%d): %v", attempt, retries, err))
+			diagnosticRecordAttempt("olcrtc", "go", "proxy_retry_timeout", attemptID)
 			mobile.Stop()
 			rc = -3
 			continue
 		}
 		iosOlcrtcSocksPort = cfg.SocksPort
+		diagnosticRecordAttempt("olcrtc", "go", "proxy_ready", attemptID)
 		// Return unused heap pages to iOS now that the WebRTC handshake burst is
 		// over — the setup churns a lot of transient memory. Keeps the NE's
 		// resident footprint closer to the steady-state working set.
@@ -125,11 +128,19 @@ func StartOlcrtc(configStr *C.char) C.int {
 			cfg.SocksPort, before/1048576, after/1048576))
 		return 0
 	}
+	if rc == -2 {
+		diagnosticRecordAttempt("olcrtc", "go", "start_failed", attemptID)
+	}
+	if rc == -3 {
+		diagnosticRecordAttempt("olcrtc", "go", "proxy_timeout", attemptID)
+	}
 	return rc
 }
 
 //export StopOlcrtc
 func StopOlcrtc() C.int {
+	attemptID := diagnosticCurrentAttempt()
+	diagnosticRecordAttempt("olcrtc", "go", "stopped", attemptID)
 	mobile.Stop()
 	iosOlcrtcSocksPort = 0
 	return 0

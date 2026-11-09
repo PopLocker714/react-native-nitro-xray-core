@@ -34,5 +34,6 @@ target_link_libraries(
         ${PACKAGE_NAME}
         xray
         ${LOG_LIB}
+        dl
         android                                   # <-- Android core
 )
