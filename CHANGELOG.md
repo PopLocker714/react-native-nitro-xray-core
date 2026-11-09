@@ -1,3 +1,19 @@
+## [1.8.0](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.7.0...v1.8.0) (2026-11-09)
+
+### ✨ Features
+
+* add native diagnostics foundation ([4686200](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/468620092344dba6997605dc7dd67e1a0f3d2c14))
+
+### 🐛 Bug Fixes
+
+* align native log events with upstream ([5dcdde4](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/5dcdde4c97f8a480ee878a42c6ea15dd48eb3380))
+* retain and read iOS diagnostic snapshots ([2bd184a](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/2bd184a3845e29f250f32721eeaf6988e52de495))
+
+### 📚 Documentation
+
+* prepare validated native diagnostic release ([143fba8](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/143fba842beb2095264127861ef65c0985f65e74))
+* record diagnostic validation and limits ([eaa24b6](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/eaa24b695e32732cbb1107bb3f422903f0616221))
+
 ## [1.7.0](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.6.0...v1.7.0) (2026-11-09)
 
 ### ✨ Features
