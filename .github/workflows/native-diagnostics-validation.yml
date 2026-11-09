@@ -94,7 +94,7 @@ jobs:
           mkdir -p "../android/src/main/jniLibs/$ABI" "../android/src/main/cpp/xray/$ABI"
           go build -p 2 -trimpath -buildmode=c-shared -ldflags='-s -w -checklinkname=0 -extldflags=-Wl,-soname,libxray.so' -o "../android/src/main/jniLibs/$ABI/libxray.so" ./libxray
           mv "../android/src/main/jniLibs/$ABI/libxray.h" "../android/src/main/cpp/xray/$ABI/libxray.h"
-          "$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm" -D "../android/src/main/jniLibs/$ABI/libxray.so" | rg ' (GetDiagnosticSnapshot|GetDiagnosticCheckpoint|BeginDiagnosticAttempt|RecordDiagnosticCode|ClearDiagnostics)$'
+          python3 -c 'import os,subprocess; tool=os.environ["ANDROID_HOME"]+"/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"; data=subprocess.check_output([tool,"-D","../android/src/main/jniLibs/"+os.environ["ABI"]+"/libxray.so"],text=True); symbols={line.split()[-1] for line in data.splitlines() if line.split()}; required={"GetDiagnosticSnapshot","GetDiagnosticCheckpoint","BeginDiagnosticAttempt","RecordDiagnosticCode","ClearDiagnostics"}; missing=required-symbols; assert not missing,sorted(missing); print("All diagnostic C exports present")'
       - uses: actions/upload-artifact@v4
         with:
           name: native-go-android-${{ matrix.abi }}
