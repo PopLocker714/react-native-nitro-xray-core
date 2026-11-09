@@ -6,6 +6,13 @@ const page = { available: true, events: [entry], next: 1, more: false, dropped: 
 const parse = (value: unknown) => parseDiagnosticSnapshot(JSON.stringify(value))
 describe('diagnostic privacy boundary', () => {
  test('accepts bounded native facts', () => expect(parse(page)).toEqual(page))
+ test('marks postmortem pages and validates the nested privacy boundary', () => {
+  const checkpointUtc = '2026-11-09T12:00:00Z'
+  expect(parse({ checkpointUtc, snapshot: page })).toEqual({ ...page, checkpointUtc })
+  expect(parse({ checkpointUtc: 'secret', snapshot: page })).toEqual({ available: false })
+  expect(parse({ checkpointUtc, snapshot: { ...page, config: 'secret' } })).toEqual({ available: false })
+  expect(parse({ checkpointUtc, snapshot: page, url: 'https://private.example' })).toEqual({ available: false })
+ })
  test('old binary/unavailable/malformed is unavailable', () => {
   for (const raw of ['{}','{"available":false}', 'invalid', 'null', '[]']) expect(parseDiagnosticSnapshot(raw)).toEqual({ available: false })
  })

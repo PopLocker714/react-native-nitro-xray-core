@@ -194,7 +194,35 @@ class HybridNitroXrayCore: HybridNitroXrayCoreSpec {
 
     // A missing/old extension or a timeout is a capability failure, never a VPN failure.
     func getDiagnosticSnapshot(after: Double) throws -> Promise<String> {
-        return diagnosticMessage(command: "diagnostics", after: after)
+        let result = Promise<String>()
+        diagnosticMessage(command: "diagnostics", after: after).then { response in
+            if response == "{\"available\":false}" {
+                result.resolve(withResult: self.diagnosticCheckpoint(after: after) ?? response)
+            } else { result.resolve(withResult: response) }
+        }.catch { _ in result.resolve(withResult: "{\"available\":false}") }
+        return result
+    }
+    // A postmortem page is marked explicitly and must never trigger live failure diagnosis.
+    private func diagnosticCheckpoint(after: Double) -> String? {
+        guard after == 0,
+              let directory = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: kAppGroup)
+        else { return nil }
+        let url = directory.appendingPathComponent("native-diagnostics.json")
+        guard let metadata = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey]),
+              let saved = metadata.contentModificationDate,
+              Date().timeIntervalSince(saved) >= 0, Date().timeIntervalSince(saved) <= 72 * 3600,
+              let size = metadata.fileSize, size <= 32768,
+              let handle = try? FileHandle(forReadingFrom: url)
+        else { return nil }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: 32769), data.count <= 32768,
+              let snapshot = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              snapshot["available"] as? Bool == true,
+              let envelope = try? JSONSerialization.data(withJSONObject: [
+                  "checkpointUtc": ISO8601DateFormatter().string(from: saved), "snapshot": snapshot
+              ]), envelope.count <= 32768
+        else { return nil }
+        return String(data: envelope, encoding: .utf8)
     }
     func clearDiagnostics() throws -> Promise<Void> {
         let result = Promise<Void>()

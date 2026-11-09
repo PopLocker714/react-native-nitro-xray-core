@@ -10,6 +10,7 @@ export interface DiagnosticEvent {
 export type DiagnosticSnapshot = { available: false } | {
   available: true; events: DiagnosticEvent[]; next: number; more: boolean
   dropped: number; truncated: number; probe: 'unavailable'
+  checkpointUtc?: string
 }
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -34,7 +35,14 @@ function event(value: unknown): value is DiagnosticEvent {
 export function parseDiagnosticSnapshot(raw: string): DiagnosticSnapshot {
   if (typeof raw !== 'string' || raw.length > 32768 || /[^\x00-\x7f]/.test(raw)) return { available: false }
   try {
-    const value: unknown = JSON.parse(raw)
+    let value: unknown = JSON.parse(raw)
+    let checkpointUtc: string | undefined
+    if (object(value) && exact(value, ['checkpointUtc', 'snapshot'])) {
+      if (typeof value.checkpointUtc !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/.test(value.checkpointUtc)) return { available: false }
+      checkpointUtc = value.checkpointUtc
+      value = value.snapshot
+    }
     if (!object(value) || value.available !== true ||
       !exact(value, ['available','events','next','more','dropped','truncated','probe']) ||
       !Array.isArray(value.events) || value.events.length > 1024 || !value.events.every(event) ||
@@ -43,6 +51,7 @@ export function parseDiagnosticSnapshot(raw: string): DiagnosticSnapshot {
     let previous = -1
     for (const item of value.events) { if (item.seq <= previous || item.seq > value.next) return { available: false }; previous = item.seq }
     return { available: true, events: value.events, next: value.next, more: value.more,
-      dropped: value.dropped, truncated: value.truncated, probe: 'unavailable' }
+      dropped: value.dropped, truncated: value.truncated, probe: 'unavailable',
+      ...(checkpointUtc ? { checkpointUtc } : {}) }
   } catch { return { available: false } }
 }

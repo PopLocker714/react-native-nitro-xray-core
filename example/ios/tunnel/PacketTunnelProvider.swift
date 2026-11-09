@@ -51,18 +51,14 @@ private enum XrayKeychain {
 private let logger = Logger(subsystem: "com.xraycore.example.tunnel", category: "PacketTunnel")
 
 
-// Optional Go symbols: old artifacts report unavailable instead of crashing.
+// Strong C references keep diagnostics linked into the extension; matching Go artifacts are required.
 private enum TunnelDiagnostics {
     private static let checkpointLock = NSLock()
-    private static let handle = UnsafeMutableRawPointer(bitPattern: -2) // RTLD_DEFAULT
     static func begin() {
-        guard let symbol = dlsym(handle, "BeginDiagnosticAttempt") else { return }
-        unsafeBitCast(symbol, to: (@convention(c) () -> Void).self)()
+        BeginDiagnosticAttempt()
     }
     static func snapshot(after: UInt64 = 0) -> Data? {
-        guard let symbol = dlsym(handle, "GetDiagnosticSnapshot") else { return nil }
-        let call = unsafeBitCast(symbol, to: (@convention(c) (UInt64) -> UnsafeMutablePointer<CChar>?).self)
-        guard let pointer = call(after) else { return nil }
+        guard let pointer = GetDiagnosticSnapshot(after) else { return nil }
         defer { FreeString(pointer) }
         let length = strnlen(pointer, 32769)
         guard length <= 32768 else { return nil }
@@ -73,16 +69,13 @@ private enum TunnelDiagnostics {
         if let directory = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group) {
             try? FileManager.default.removeItem(at: directory.appendingPathComponent("native-diagnostics.json"))
         }
-        guard let symbol = dlsym(handle, "ClearDiagnostics") else { return false }
-        unsafeBitCast(symbol, to: (@convention(c) () -> Void).self)()
+        ClearDiagnostics()
         return true
     }
     static func checkpoint(group: String) {
         checkpointLock.lock(); defer { checkpointLock.unlock() }
         // Source is ONLY the allowlisted Go DTO. No stderr, config or error strings.
-        guard let symbol = dlsym(handle, "GetDiagnosticCheckpoint") else { return }
-        let call = unsafeBitCast(symbol, to: (@convention(c) () -> UnsafeMutablePointer<CChar>?).self)
-        guard let pointer = call() else { return }
+        guard let pointer = GetDiagnosticCheckpoint() else { return }
         defer { FreeString(pointer) }
         let length = strnlen(pointer, 32769)
         guard length <= 32768 else { return }

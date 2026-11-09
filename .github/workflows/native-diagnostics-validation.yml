@@ -76,6 +76,8 @@ jobs:
           go-version-file: go-core/go.mod
           cache-dependency-path: go-core/go.sum
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - run: sdkmanager 'ndk;29.0.14206865'
       - name: Build matching Go library and header
         working-directory: go-core
@@ -146,3 +148,30 @@ jobs:
           name: native-go-ios
           path: ios/Xray.xcframework
           retention-days: 7
+
+  ios-example:
+    needs: [contracts, ios-go]
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - uses: actions/download-artifact@v4
+        with:
+          name: diagnostic-bindings
+          path: nitrogen/generated
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-go-ios
+          path: ios/Xray.xcframework
+      - run: bun install --frozen-lockfile
+      - name: Resolve native dependencies
+        working-directory: example/ios
+        run: pod install
+      - name: Compile Swift, generated bindings and extension
+        working-directory: example/ios
+        run: |
+          xcodebuild -workspace NitroXrayCoreExample.xcworkspace -scheme NitroXrayCoreExample -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/diagnostics-ios-build" build CODE_SIGNING_ALLOWED=NO
