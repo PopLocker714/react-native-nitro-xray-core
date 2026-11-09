@@ -54,6 +54,9 @@ namespace margelo::nitro::nitroxraycore {
 
   public:
     // Methods
+    std::shared_ptr<Promise<std::string>> getDiagnosticSnapshot(double after) override;
+    std::shared_ptr<Promise<void>> clearDiagnostics() override;
+    std::string getSystemVpnStatus() override;
     std::shared_ptr<Promise<bool>> hasVpnPermission() override;
     std::shared_ptr<Promise<void>> requestVpnPermission() override;
     std::shared_ptr<Promise<bool>> requestNotificationPermission() override;

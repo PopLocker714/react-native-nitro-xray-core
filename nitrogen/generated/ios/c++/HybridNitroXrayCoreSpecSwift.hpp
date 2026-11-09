@@ -17,8 +17,8 @@ namespace margelo::nitro::nitroxraycore { struct TrafficStats; }
 // Forward declaration of `NotificationConfig` to properly resolve imports.
 namespace margelo::nitro::nitroxraycore { struct NotificationConfig; }
 
-#include <NitroModules/Promise.hpp>
 #include <string>
+#include <NitroModules/Promise.hpp>
 #include "TrafficStats.hpp"
 #include <functional>
 #include "NotificationConfig.hpp"
@@ -74,6 +74,30 @@ namespace margelo::nitro::nitroxraycore {
 
   public:
     // Methods
+    inline std::shared_ptr<Promise<std::string>> getDiagnosticSnapshot(double after) override {
+      auto __result = _swiftPart.getDiagnosticSnapshot(std::forward<decltype(after)>(after));
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
+    inline std::shared_ptr<Promise<void>> clearDiagnostics() override {
+      auto __result = _swiftPart.clearDiagnostics();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
+    inline std::string getSystemVpnStatus() override {
+      auto __result = _swiftPart.getSystemVpnStatus();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+      auto __value = std::move(__result.value());
+      return __value;
+    }
     inline std::shared_ptr<Promise<bool>> hasVpnPermission() override {
       auto __result = _swiftPart.hasVpnPermission();
       if (__result.hasError()) [[unlikely]] {

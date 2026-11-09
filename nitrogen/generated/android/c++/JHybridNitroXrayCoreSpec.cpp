@@ -12,10 +12,10 @@ namespace margelo::nitro::nitroxraycore { struct TrafficStats; }
 // Forward declaration of `NotificationConfig` to properly resolve imports.
 namespace margelo::nitro::nitroxraycore { struct NotificationConfig; }
 
+#include <string>
 #include <NitroModules/Promise.hpp>
 #include <NitroModules/JPromise.hpp>
 #include <NitroModules/JUnit.hpp>
-#include <string>
 #include "TrafficStats.hpp"
 #include "JTrafficStats.hpp"
 #include <functional>
@@ -58,6 +58,42 @@ namespace margelo::nitro::nitroxraycore {
   
 
   // Methods
+  std::shared_ptr<Promise<std::string>> JHybridNitroXrayCoreSpec::getDiagnosticSnapshot(double after) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPromise::javaobject>(double /* after */)>("getDiagnosticSnapshot");
+    auto __result = method(_javaPart, after);
+    return [&]() {
+      auto __promise = Promise<std::string>::create();
+      __result->cthis()->addOnResolvedListener([=](const jni::alias_ref<jni::JObject>& __boxedResult) {
+        auto __result = jni::static_ref_cast<jni::JString>(__boxedResult);
+        __promise->resolve(__result->toStdString());
+      });
+      __result->cthis()->addOnRejectedListener([=](const jni::alias_ref<jni::JThrowable>& __throwable) {
+        jni::JniException __jniError(__throwable);
+        __promise->reject(std::make_exception_ptr(__jniError));
+      });
+      return __promise;
+    }();
+  }
+  std::shared_ptr<Promise<void>> JHybridNitroXrayCoreSpec::clearDiagnostics() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPromise::javaobject>()>("clearDiagnostics");
+    auto __result = method(_javaPart);
+    return [&]() {
+      auto __promise = Promise<void>::create();
+      __result->cthis()->addOnResolvedListener([=](const jni::alias_ref<jni::JObject>& /* unit */) {
+        __promise->resolve();
+      });
+      __result->cthis()->addOnRejectedListener([=](const jni::alias_ref<jni::JThrowable>& __throwable) {
+        jni::JniException __jniError(__throwable);
+        __promise->reject(std::make_exception_ptr(__jniError));
+      });
+      return __promise;
+    }();
+  }
+  std::string JHybridNitroXrayCoreSpec::getSystemVpnStatus() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<jni::JString>()>("getSystemVpnStatus");
+    auto __result = method(_javaPart);
+    return __result->toStdString();
+  }
   std::shared_ptr<Promise<bool>> JHybridNitroXrayCoreSpec::hasVpnPermission() {
     static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPromise::javaobject>()>("hasVpnPermission");
     auto __result = method(_javaPart);

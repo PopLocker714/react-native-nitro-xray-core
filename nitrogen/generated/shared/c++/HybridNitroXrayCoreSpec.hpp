@@ -18,8 +18,8 @@ namespace margelo::nitro::nitroxraycore { struct TrafficStats; }
 // Forward declaration of `NotificationConfig` to properly resolve imports.
 namespace margelo::nitro::nitroxraycore { struct NotificationConfig; }
 
-#include <NitroModules/Promise.hpp>
 #include <string>
+#include <NitroModules/Promise.hpp>
 #include "TrafficStats.hpp"
 #include <functional>
 #include "NotificationConfig.hpp"
@@ -55,6 +55,9 @@ namespace margelo::nitro::nitroxraycore {
 
     public:
       // Methods
+      virtual std::shared_ptr<Promise<std::string>> getDiagnosticSnapshot(double after) = 0;
+      virtual std::shared_ptr<Promise<void>> clearDiagnostics() = 0;
+      virtual std::string getSystemVpnStatus() = 0;
       virtual std::shared_ptr<Promise<bool>> hasVpnPermission() = 0;
       virtual std::shared_ptr<Promise<void>> requestVpnPermission() = 0;
       virtual std::shared_ptr<Promise<bool>> requestNotificationPermission() = 0;

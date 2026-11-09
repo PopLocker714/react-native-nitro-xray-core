@@ -21,6 +21,12 @@ extern const char *_GoStringPtr(_GoString_ s);
 /* Start of preamble from import "C" comments.  */
 
 
+#line 5 "diagnostics.go"
+
+#include <stdlib.h>
+
+#line 1 "cgo-generated-wrapper"
+
 #line 6 "main_ios.go"
 
 #include <stdlib.h>
@@ -105,6 +111,11 @@ typedef struct { void *data; GoInt len; GoInt cap; } GoSlice;
 extern "C" {
 #endif
 
+extern void BeginDiagnosticAttempt(void);
+extern void RecordDiagnosticCode(int code);
+extern void ClearDiagnostics(void);
+extern char* GetDiagnosticSnapshot(unsigned long long after);
+extern char* GetDiagnosticCheckpoint(void);
 extern int StartXray(char* configStr, int tunFd);
 extern int StopXray(void);
 extern char* GetVersion(void);

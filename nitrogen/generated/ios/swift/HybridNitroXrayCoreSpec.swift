@@ -13,6 +13,9 @@ public protocol HybridNitroXrayCoreSpec_protocol: HybridObject {
   
 
   // Methods
+  func getDiagnosticSnapshot(after: Double) throws -> Promise<String>
+  func clearDiagnostics() throws -> Promise<Void>
+  func getSystemVpnStatus() throws -> String
   func hasVpnPermission() throws -> Promise<Bool>
   func requestVpnPermission() throws -> Promise<Void>
   func requestNotificationPermission() throws -> Promise<Bool>

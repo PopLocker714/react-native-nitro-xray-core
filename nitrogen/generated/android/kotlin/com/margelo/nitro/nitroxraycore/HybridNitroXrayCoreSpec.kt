@@ -31,6 +31,18 @@ abstract class HybridNitroXrayCoreSpec: HybridObject() {
   // Methods
   @DoNotStrip
   @Keep
+  abstract fun getDiagnosticSnapshot(after: Double): Promise<String>
+  
+  @DoNotStrip
+  @Keep
+  abstract fun clearDiagnostics(): Promise<Unit>
+  
+  @DoNotStrip
+  @Keep
+  abstract fun getSystemVpnStatus(): String
+  
+  @DoNotStrip
+  @Keep
   abstract fun hasVpnPermission(): Promise<Boolean>
   
   @DoNotStrip
