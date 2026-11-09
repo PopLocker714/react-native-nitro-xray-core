@@ -61,6 +61,12 @@ Device-verified on **Android** and **iOS** (Network Extension).
 - **Kill switch** — fail-closed: Android holds the TUN as a blackhole on engine
   failure; iOS uses `NEOnDemandRule` + `includeAllNetworks`. Explicit disconnect
   always wins over on-demand.
+- **Bounded native diagnostics** — validated Xray/olcrtc lifecycle events,
+  monotonic process clocks and a marked iOS postmortem checkpoint. No raw access
+  logs or connection credentials. [API and limits](docs/native-diagnostics.md)
+  / [на русском](docs/native-diagnostics.ru.md).
+- **Android system VPN status** — distinguish Always-on/lockdown from app-level
+  kill switch, with guarded system replay of opted-in stored configurations.
 - **Configurable foreground notification** (Android) — title / text / Disconnect
   button, translatable at runtime.
 - **Configurable VPN name** (iOS) — brand the profile shown in Settings → VPN.

@@ -1,8 +1,8 @@
-# Native diagnostics foundation (unreleased source)
+# Native diagnostics (1.8)
 
-This task changes the native ABI. Package version stays 1.7.0; the published
-1.7.0 binaries do **not** contain this implementation. Do not ship these sources
-with stale generated bindings/artifacts or distribute them through OTA alone.
+This minor release changes the native ABI. Published 1.7.0 binaries do **not**
+contain these methods. Rebuild the app with this SDK's matching generated bindings
+and native artifacts; an OTA-only upgrade cannot add this capability.
 
 ```ts
 import { getDiagnosticSnapshot, clearDiagnostics, getSystemVpnStatus } from 'react-native-nitro-xray-core'
@@ -97,11 +97,14 @@ bindings and those archives/headers were imported and verified against the CI
 artifact hashes. Nitrogen emits trailing whitespace; generated files are preserved
 verbatim. The current local suite has 115 tests including checkpoint validation.
 
-The next source revision is under [42597366177](https://github.com/PopLocker714/react-native-nitro-xray-core/actions/runs/42597366177).
-It fixes SDK setup (the removed Android package `tools` must not be requested),
-builds all four Android ABIs, and compiles Android/iOS example consumers against
-matching bindings and native artifacts. This run is still pending at this edit;
-Android libraries and bridge/NE builds are not yet claimed passing.
+The final remote run [42600049856](https://github.com/PopLocker714/react-native-nitro-xray-core/actions/runs/42600049856)
+passed all contracts, collector race/policy tests, four Android Go ABIs, iOS device
+and arm64 simulator archives, and both Android/iOS example consumer builds.
+Matching Android artifacts/headers were imported in a26d7b9; bindings and iOS
+artifacts are in c0f096c. The generic iOS destination initially requested an
+unsupported x86_64 slice; CI now explicitly compiles the supported arm64 simulator.
+These compile/link checks do not establish boot/process-death/Always-on behavior
+on physical devices; those acceptance gates remain below.
 
 The iOS provider now uses strong C references instead of dlsym, so diagnostics
 symbols are retained without relying on dynamic export/dead-strip configuration.
@@ -113,8 +116,8 @@ Device release gates remain: API24/28/29+ SERVICE_INTERFACE, null restart, OS
 Always-on on/off, lockdown, process death/boot, manual stop, widget replay, missing
 config, logout and stop/start races. Verify no phantom replay/direct fallback.
 Verify NE reply bounds/timeout, checkpoint protection/expiry, live-vs-historical
-labeling and old installed binary behavior. No npm release, store rollout or OTA
-has occurred for this implementation. The app must acquire a new native binary.
+labeling and old installed binary behavior. Store rollout and OTA distribution are separate consumer operations.
+The app must acquire a new native binary.
 
 The manual branch-only workflow generates reusable artifacts without publication.
 Local heavy builds are blocked by the Mac resource guard; do not weaken it to

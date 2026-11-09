@@ -1,9 +1,9 @@
-# Основа нативной диагностики (не опубликована)
+# Нативная диагностика (1.8)
 
 Основной контракт и точный список CI-проверок: [English](native-diagnostics.md).
-Версия остаётся 1.7.0, но ABI исходников изменена. Опубликованные бинарники 1.7.0
-не реализуют новые методы. До генерации Nitrogen и пересборки всех платформенных
-артефактов этот commit нельзя выдавать за готовый SDK/app build или OTA.
+В этой minor-версии изменена ABI. Бинарники 1.7.0 не реализуют новые методы.
+Bindings и все платформенные артефакты SDK обновлены вместе; приложению нужен
+новый нативный билд, одного OTA недостаточно.
 
 Публичные методы: getDiagnosticSnapshot(after=0), clearDiagnostics(),
 getSystemVpnStatus(). Wrapper проверяет поля DTO по allowlist; неизвестные поля,
@@ -55,11 +55,14 @@ Kotlin policy tests; собраны iOS device/simulator archives. Bindings и i
 артефакты перенесены из CI с проверкой хешей. Generated whitespace сохранён как
 выдал Nitrogen. Локально теперь 115 Bun tests (добавлена проверка checkpoint).
 
-CI42597366177 ещё выполняется: исправляет установку Android SDK, собирает четыре
-Android ABI и Android/iOS example bridge/NE. Эти native consumer checks пока не
-объявлены успешными. В iOS provider прямые C references вместо dlsym: matching
-Go header/archive обязательны. Old installed SDK по-прежнему даёт unavailable
-через optional-capability JS wrapper. Native device/Always-on/boot/logout matrix
-остаётся release gate. Ничего не опубликовано в npm/магазинах/OTA. Локальная
-тяжёлая сборка запрещена guard при недостатке памяти или диска; проверки
-перенесены в branch-only CI, исходники не выдают за установленное приложение.
+Итоговый CI42600049856 прошёл полностью: contracts, Go race/Kotlin policy,
+четыре Android ABI, iOS device/arm64 simulator и Android/iOS example consumer
+со Swift/JNI/Kotlin/bindings. Android артефакты перенесены с hash-проверкой вa26d7b9.
+Generic iOS destination сначала требовал неподдерживаемый x86_64; команда проверки
+теперь явно собирает arm64 simulator. Provider использует прямые C references.
+
+Поведение Always-on/boot/process death/logout на физических устройствах и доставка
+отчётов приложения в GlitchTip остаются отдельными acceptance-проверками.
+Опубликованные ранее установленные SDK дают unavailable через optional-capability
+wrapper. Выкат приложения/магазины/OTA не выполнялись. Локальные тяжёлые сборки
+блокируются resource guard; полная проверка вынесена в branch-only CI.
