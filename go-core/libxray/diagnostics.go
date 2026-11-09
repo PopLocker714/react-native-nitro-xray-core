@@ -10,6 +10,7 @@ import "C"
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -53,7 +54,7 @@ var diagnosticCodes = map[string]string{
 	"engine_started": "info", "parse_failed": "error", "init_failed": "error",
 	"start_failed": "error", "stop_failed": "error", "already_running": "warning",
 	"proxy_ready": "info", "proxy_timeout": "error", "logger_started": "info",
-	"logger_closed": "info", "no_config": "error", "system_replay_denied": "warning",
+	"logger_closing": "info", "no_config": "error", "system_replay_denied": "warning",
 	"fatal": "fatal", "proxy_retry_failed": "warning", "proxy_retry_timeout": "warning", "link_connected": "info", "reconnect": "warning", "session_accepted": "info",
 }
 
@@ -91,7 +92,7 @@ func diagnosticRecordAttempt(source, producer, code string, attempt uint64) {
 	}
 	// Reserve 128 entries / 64 KiB for terminal/lifecycle outcomes under a flood.
 	maxCount, maxBytes := 1024, 256*1024
-	if (source == "olcrtc" || code == "logger_started" || code == "logger_closed") && severity != "error" && severity != "fatal" {
+	if (source == "olcrtc" || code == "logger_started" || code == "logger_closing") && severity != "error" && severity != "fatal" {
 		maxCount = 896
 		maxBytes = 192 * 1024
 	}
@@ -208,8 +209,8 @@ func (safeXrayHandler) Handle(message corelog.Message) {
 	switch content {
 	case "Logger started", "app/log: Logger started":
 		diagnosticRecord("xray", "go", "logger_started")
-	case "Logger closed", "app/log: Logger closed":
-		diagnosticRecord("xray", "go", "logger_closed")
+	case "Logger closing", "app/log: Logger closing":
+		diagnosticRecord("xray", "go", "logger_closing")
 	default:
 		diagnosticUnknown()
 	}
@@ -228,13 +229,13 @@ func init() {
 
 type olcrtcLogWriter struct{}
 
+// mobile.SetDebug selects log.Ltime, adding log.Lshortfile in debug mode.
+var olcrtcLogPrefix = regexp.MustCompile(`^\d{2}:\d{2}:\d{2} (?:[A-Za-z0-9_.-]+\.go:\d+: )?`)
+
 func (olcrtcLogWriter) WriteLog(message string) {
 	// Unknown lines, even ones containing familiar substrings, are discarded.
 	// Wrapper lifecycle records below provide stable errors independent of upstream text.
-	// mobile.logWriter receives standard log output; strip only the fixed timestamp prefix.
-	if len(message) >= 20 && message[4] == '/' && message[7] == '/' && message[10] == ' ' && message[13] == ':' && message[16] == ':' {
-		message = message[20:]
-	}
+	message = olcrtcLogPrefix.ReplaceAllString(message, "")
 	switch strings.TrimSuffix(message, "\n") {
 	case "Link connected":
 		diagnosticRecord("olcrtc", "go", "link_connected")

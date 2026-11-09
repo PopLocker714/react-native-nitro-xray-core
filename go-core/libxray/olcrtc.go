@@ -173,6 +173,7 @@ func olcrtcStartWithRetry(cfg olcrtcConfig, retries int, attemptID uint64) C.int
 func StopOlcrtc() C.int {
 	attemptID := diagnosticCurrentAttempt()
 	mobile.Stop()
+	diagnosticRecordAttempt("olcrtc", "go", "stopped", attemptID)
 	olcrtcSocksPort = 0
 	logInfo("olcrtc: stopped")
 	return 0

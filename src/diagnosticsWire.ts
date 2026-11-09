@@ -1,6 +1,6 @@
 const codes = ['attempt_started', 'stopped', 'cancelled', 'engine_started', 'parse_failed',
   'init_failed', 'start_failed', 'stop_failed', 'already_running', 'proxy_ready',
-  'proxy_timeout', 'logger_started', 'logger_closed', 'no_config', 'system_replay_denied',
+  'proxy_timeout', 'logger_started', 'logger_closing', 'no_config', 'system_replay_denied',
   'proxy_retry_failed', 'proxy_retry_timeout', 'fatal', 'link_connected', 'reconnect', 'session_accepted'] as const
 export interface DiagnosticEvent {
   seq: number; utc: string; elapsedMs: number; clockScope: string; attempt: number

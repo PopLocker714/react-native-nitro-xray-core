@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	corelog "github.com/xtls/xray-core/common/log"
 	"strings"
 	"sync"
 	"testing"
@@ -65,15 +66,27 @@ func TestUnknownLinesNeverEnterBuffer(t *testing.T) {
 }
 func TestKnownOlcrtcLine(t *testing.T) {
 	ClearDiagnostics()
-	(olcrtcLogWriter{}).WriteLog("2026/11/09 12:00:00 goolom: full reconnect triggered\n")
+	(olcrtcLogWriter{}).WriteLog("12:00:00 goolom: full reconnect triggered\n")
+	(olcrtcLogWriter{}).WriteLog("12:00:01 logger.go:100: Link connected\n")
+	(olcrtcLogWriter{}).WriteLog("12:00:02 jitsi.go:120: jitsi: session-accept sent\n")
 	diagnostics.Lock()
 	defer diagnostics.Unlock()
-	if len(diagnostics.entries) != 1 || diagnostics.entries[0].event.Code != "reconnect" {
+	if len(diagnostics.entries) != 3 || diagnostics.entries[0].event.Code != "reconnect" ||
+		diagnostics.entries[1].event.Code != "link_connected" || diagnostics.entries[2].event.Code != "session_accepted" {
 		t.Fatal("known classifier mismatch")
 	}
 	encoded, _ := json.Marshal(diagnostics.entries)
 	if strings.Contains(string(encoded), "goolom:") {
 		t.Fatal("raw line leaked")
+	}
+}
+func TestXrayClosingIsNotAConfirmedStop(t *testing.T) {
+	ClearDiagnostics()
+	(safeXrayHandler{}).Handle(&corelog.GeneralMessage{Content: "app/log: Logger closing"})
+	diagnostics.Lock()
+	defer diagnostics.Unlock()
+	if len(diagnostics.entries) != 1 || diagnostics.entries[0].event.Code != "logger_closing" {
+		t.Fatal("upstream closing event was lost or treated as a confirmed stop")
 	}
 }
 func TestAttemptIdentityNotReusedAfterClear(t *testing.T) {
