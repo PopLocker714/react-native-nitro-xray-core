@@ -1,3 +1,9 @@
+## [1.7.0](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.6.0...v1.7.0) (2026-11-09)
+
+### ✨ Features
+
+* add Hysteria2 and opt-in domain routing ([98a0425](https://github.com/PopLocker714/react-native-nitro-xray-core/commit/98a0425a19283d3246edd98990369803cbdd277b))
+
 ## [1.6.0](https://github.com/PopLocker714/react-native-nitro-xray-core/compare/v1.5.0...v1.6.0) (2026-09-23)
 
 ### ✨ Features
