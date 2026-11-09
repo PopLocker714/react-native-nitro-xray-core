@@ -174,4 +174,5 @@ jobs:
       - name: Compile Swift, generated bindings and extension
         working-directory: example/ios
         run: |
-          xcodebuild -workspace NitroXrayCoreExample.xcworkspace -scheme NitroXrayCoreExample -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/diagnostics-ios-build" build CODE_SIGNING_ALLOWED=NO
+          # The shipped simulator archive supports arm64 only.
+          xcodebuild -workspace NitroXrayCoreExample.xcworkspace -scheme NitroXrayCoreExample -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/diagnostics-ios-build" build CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=NO EXCLUDED_ARCHS=x86_64
