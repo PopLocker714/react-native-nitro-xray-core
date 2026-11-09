@@ -30,8 +30,9 @@ attempt до запуска. Асинхронные upstream logs имеют att
 NE IPC ограничен 256 B входа / 32 KiB ответа, timeout app bridge 2 секунды.
 В App Group атомарно сохраняется защищённый от backup очищенный bounded хвост
 native-diagnostics.json на lifecycle/snapshot границах. При убийстве процесса
-поздние события могут пропасть. Публичный API пока читает живой NE; reader/TTL/
-доставка checkpoint — следующая consumer-задача. Clear требует доступного NE.
+поздние события могут пропасть. При недоступном NE cursor=0 читает checkpoint до 72 часов; checkpointUtc явно
+помечает исторический снимок. Такой снимок не запускает диагностику живого сбоя.
+Доставка отчёта остаётся consumer-задачей. Clear требует доступного NE.
 Реальный PacketTunnelProvider приложения и пример SDK обновлены.
 
 Android app killSwitch отдельно от системных Always-on/lockdown. System replay
@@ -49,11 +50,16 @@ alwaysOn/lockdown=null при отсутствии возможности узн
 probe=unavailable. Idle, zero bytes, один ping, RN fetch через underlay и engine_chain
 не доказывают потерю TUN. Автоотчёты и backend delivery здесь не реализуются.
 
-Проверено: 114 Bun tests, прежние 103 сохранены. Guard отказал codegen/typecheck:
-сначала pressure=2/disk=0,74 GiB; затем disk=2,15 GiB при минимуме 4 GiB.
-Go race tests, Kotlin policy runner, native builds/device matrix не запускались.
-Generated Nitrogen, C headers, .so/.a/XCFramework не обновлены. Требуется CI:
-генерация → host collector/policy tests → все нативные артефакты → сборка bridge/NE →
-device checks. Новые Go symbols должны пережить static dead-strip и быть доступны
-через dlsym в NE; это отдельный обязательный CI gate. Точные шаги и список символов
-даны в основном документе. Push/PR/release/workflow dispatch не выполнялись.
+Проверено удалённо в CI42596289093: Nitrogen, TypeScript, 114 Bun tests, Go race и
+Kotlin policy tests; собраны iOS device/simulator archives. Bindings и iOS
+артефакты перенесены из CI с проверкой хешей. Generated whitespace сохранён как
+выдал Nitrogen. Локально теперь 115 Bun tests (добавлена проверка checkpoint).
+
+CI42597366177 ещё выполняется: исправляет установку Android SDK, собирает четыре
+Android ABI и Android/iOS example bridge/NE. Эти native consumer checks пока не
+объявлены успешными. В iOS provider прямые C references вместо dlsym: matching
+Go header/archive обязательны. Old installed SDK по-прежнему даёт unavailable
+через optional-capability JS wrapper. Native device/Always-on/boot/logout matrix
+остаётся release gate. Ничего не опубликовано в npm/магазинах/OTA. Локальная
+тяжёлая сборка запрещена guard при недостатке памяти или диска; проверки
+перенесены в branch-only CI, исходники не выдают за установленное приложение.

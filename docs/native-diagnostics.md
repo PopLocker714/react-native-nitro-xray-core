@@ -58,8 +58,10 @@ consumer provider and SDK example contain the seam. A protected atomic App Group
 native-diagnostics.json checkpoint stores only the latest bounded sanitized page
 at start/engine outcome/stop/snapshot boundaries, excluded from backup. Abrupt kill
 can lose later events. No raw stderr reader or automatic checkpoint upload exists.
-Checkpoint read/expiry/report integration belongs to the consumer's next task;
-current public API reads live NE only, and clear requires reachable NE.
+When live NE is unavailable, cursor=0 can read this bounded checkpoint for up to
+72 hours. The validated public page includes checkpointUtc; historical pages
+must never trigger automatic live-failure diagnosis. Clear still requires live NE;
+report delivery is the consumer's responsibility.
 
 ## Android Always-on
 
@@ -86,43 +88,38 @@ No verified TUN probe is provided. Android RN fetch uses excluded-app underlay.
 Idle, zero counters, one ping, RN fetch and engine_chain cannot prove TUN loss.
 No automatic report delivery or data_plane_loss classification is enabled.
 
-## Required CI follow-up (not executed here)
+## Validation and remaining release gates
 
-Resource guard refused Nitrogen and typecheck; native builds were prohibited.
-114 Bun tests passed (previous 103 preserved). Go/Kotlin/native checks below are
-pending, not claimed passing. Generated files, headers, .so/.a/XCFramework slices
-remain the published artifacts and must be replaced together before integration.
+The first remote run [42596289093](https://github.com/PopLocker714/react-native-nitro-xray-core/actions/runs/42596289093)
+passed Nitrogen, TypeScript, 114 Bun tests, Go collector race tests and the Kotlin
+replay policy runner. It also built device/simulator iOS archives. Generated
+bindings and those archives/headers were imported and verified against the CI
+artifact hashes. Nitrogen emits trailing whitespace; generated files are preserved
+verbatim. The current local suite has 115 tests including checkpoint validation.
 
-1. In a resource-safe CI runner: bun install --frozen-lockfile, then
-   bun run test; bun run typecheck; bun ./node_modules/.bin/nitrogen. Run Nitrogen alone,
-   not the codegen script which additionally invokes a package build. Review and
-   commit all generated shared/Kotlin/Swift/C++ specs; never hand-edit them.
-2. In go-core: go test -race -tags diagnosticstest ./libxray. This host-only tag
-   enables collector tests without Android/iOS wrappers. Check count/byte/TTL,
-   fatal retention/concurrency, classifier, cursor/clear and attempt identity.
-3. Run the standalone Kotlin policy runner with the existing Kotlin compiler:
-   kotlinc android/src/main/java/com/nitroxraycore/SystemReplayPolicy.kt
-   android/tests/SystemReplayPolicyTest.kt -include-runtime -d /tmp/replay-policy.jar;
-   java -jar /tmp/replay-policy.jar. It needs no additional library.
-4. Use the existing go-core build scripts/toolchains to regenerate c-shared Android
-   .so + libxray.h for all supported ABIs and iOS c-archive/XCFramework device and
-   simulator slices + headers. New C exports: BeginDiagnosticAttempt,
-   RecordDiagnosticCode, GetDiagnosticSnapshot, GetDiagnosticCheckpoint,
-   ClearDiagnostics; returned strings must be released via FreeString.
-5. JNI resolves optional Go exports with dlsym; ensure exported dynamic symbols.
-   iOS static archive symbols accessed only via dlsym need linker retention AND
-   dynamic export in the NE target (e.g. -Wl,-u,_GetDiagnosticSnapshot and equivalent
-   flags for the other four exports plus exported-symbol configuration). Verify
-   symbol lookup in the running extension; nm alone is insufficient. Old artifacts
-   intentionally report unavailable. No linker settings were changed in the app.
-6. Build Kotlin/JNI/Swift and actual consumer NE against regenerated bindings and
-   matching artifacts. Existing Android/iOS example workflows only build existing
-   artifacts; they do not replace steps 1–5. No workflow was dispatched here.
-7. Device matrix: API24/28/29+ SERVICE_INTERFACE, null restart, OS Always-on on/off,
-   lockdown, process death/boot, manual stop, widget replay, missing config, logout,
-   stop/start races; verify no phantom replay/direct fallback. Verify NE reply
-   bounds/timeout, file protection/backup exclusion, checkpoint freshness and old
-   binary behavior. Native ABI and behavioral checks remain release blockers.
+The next source revision is under [42597366177](https://github.com/PopLocker714/react-native-nitro-xray-core/actions/runs/42597366177).
+It fixes SDK setup (the removed Android package `tools` must not be requested),
+builds all four Android ABIs, and compiles Android/iOS example consumers against
+matching bindings and native artifacts. This run is still pending at this edit;
+Android libraries and bridge/NE builds are not yet claimed passing.
+
+The iOS provider now uses strong C references instead of dlsym, so diagnostics
+symbols are retained without relying on dynamic export/dead-strip configuration.
+The provider requires the matching regenerated Go header/archive. Old **installed**
+SDKs still return unavailable through the JS optional-capability wrapper.
+Android JNI optional symbols must be checked in the regenerated shared libraries.
+
+Device release gates remain: API24/28/29+ SERVICE_INTERFACE, null restart, OS
+Always-on on/off, lockdown, process death/boot, manual stop, widget replay, missing
+config, logout and stop/start races. Verify no phantom replay/direct fallback.
+Verify NE reply bounds/timeout, checkpoint protection/expiry, live-vs-historical
+labeling and old installed binary behavior. No npm release, store rollout or OTA
+has occurred for this implementation. The app must acquire a new native binary.
+
+The manual branch-only workflow generates reusable artifacts without publication.
+Local heavy builds are blocked by the Mac resource guard; do not weaken it to
+complete these checks. Build recipes: go-core/build_ios.sh and the pinned Android
+matrix in .github/workflows/native-diagnostics-validation.yml.
 
 Primary sources: [Android VpnService](https://developer.android.com/reference/android/net/VpnService),
 [Android VPN guide](https://developer.android.com/develop/connectivity/vpn),
